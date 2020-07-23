@@ -1,0 +1,11 @@
+{
+    "sourcesPath": "./contracts",
+    "targetPath": "./build",
+    "compilerOptions":
+    {
+        "optimizer": {
+            "enabled": true,
+            "runs": 200
+        }
+    }
+}

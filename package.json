@@ -1,0 +1,49 @@
+{
+  "name": "staking-contract",
+  "version": "1.0.1",
+  "description": "SXP staking contract for Solidity",
+  "files": [
+    "/contracts/*.sol",
+    "/build/*.json"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SwipeWallet/staking-contract.git"
+  },
+  "keywords": [
+    "sxp",
+    "swipe",
+    "solidity",
+    "ethereum",
+    "smart",
+    "contracts",
+    "security"    
+  ],
+  "author": "growlot <growlot.71@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/SwipeWallet/staking-contract/issues"
+  },
+  "homepage": "https://github.com/SwipeWallet/staking-contract",
+  "scripts": {
+    "build": "waffle waffle-config.json",
+    "test": "yarn build && mocha",
+    "lint:solidity": "solhint contracts/*.sol",
+    "prettier:solidity": "prettier --write contracts/*.sol"
+  },
+  "devDependencies": {
+    "chai": "^4.2.0",
+    "dotenv": "^8.0.0",
+    "ethereum-waffle": "^2.0.14",
+    "ethereumjs-abi": "^0.6.8",
+    "ethers": "^4.0.33",
+    "ethjs": "^0.4.0",
+    "mocha": "^6.2.0",
+    "path": "^0.12.7",
+    "prettier": "^1.18.2",
+    "prettier-plugin-solidity": "^1.0.0-alpha.27",
+    "solhint": "^2.1.2",
+    "solhint-plugin-prettier": "^0.0.3",
+    "uuid": "^3.3.2"
+  }
+}
