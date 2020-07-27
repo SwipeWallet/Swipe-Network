@@ -11,13 +11,14 @@
     "url": "https://github.com/SwipeWallet/staking-contract.git"
   },
   "keywords": [
-    "sxp",
     "swipe",
+    "sxp",
+    "staking",
     "solidity",
     "ethereum",
     "smart",
     "contracts",
-    "security"    
+    "security"
   ],
   "author": "growlot <growlot.71@gmail.com>",
   "license": "MIT",
