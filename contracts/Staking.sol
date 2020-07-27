@@ -8,7 +8,7 @@ import "./ERC20Token.sol";
 contract Staking is Storage {
     /// events
     event Stake(
-        address indexed depositor,
+        address indexed staker,
         uint256 indexed amount
     );
 
@@ -22,8 +22,13 @@ contract Staking is Storage {
         uint256 indexed amount
     );
 
+    event MinimumStakeAmountUpdate(
+        uint256 indexed oldValue,
+        uint256 indexed newValue
+    );
+
     event RewardProviderUpdate(
-        address indexed prevValue,
+        address indexed oldValue,
         address indexed newValue
     );
 
@@ -36,7 +41,7 @@ contract Staking is Storage {
     );
 
     event DepositRewardPool(
-        address indexed toAddress,
+        address indexed depositor,
         uint256 indexed amount
     );
 
@@ -62,22 +67,25 @@ contract Staking is Storage {
     /********************
      * STANDARD ACTIONS *
      ********************/
+
     /**
-    * @dev stake a specific amount
-    * @param amount the amount to be staked
-    * for demo purposes, not requiring user to actually send in tokens right now
-    */
-    function stake(uint256 amount) external returns(bool) {
+     * @notice Stakes the provided amount of SXP from the message sender into this wallet.
+     *
+     * @param amount The amount to stake
+     */
+    function stake(uint256 amount) external {
         require(
             amount >= _minimumStakeAmount,
             "Too small amount"
         );
+
         require(
             ERC20Token(_tokenAddress).transferFrom(
                 msg.sender,
                 address(this),
                 amount
-            ), "Stake failed"
+            ),
+            "Stake failed"
         );
 
         emit Stake(
@@ -85,49 +93,57 @@ contract Staking is Storage {
             amount
         );
 
-        if (_stakeMap[msg.sender].amount == 0){
-            _stakeMap[msg.sender].amount = _amount;
-        } else {
-            _stakeMap[msg.sender].amount = _stakeMap[msg.sender].amount.add(amount);
-        }
+        _stakedMap[msg.sender].amount = _stakedMap[msg.sender].amount.add(amount);
         _totalStaked = _totalStaked.add(amount);
-
-        return true;
     }
 
     /**
-    * @dev claim reward
-    */
-    function claim(uint256 nonce) public returns (bool) {
+     * @notice Claims reward of the provided nonce.
+     *
+     * @param nonce The claim nonce uniquely identifying the authorization to claim
+     */
+    function claim(uint256 nonce) external {
         uint256 amount = _approvedClaimMap[msg.sender][nonce];
 
-        require(amount > 0, "Invalid amount");
+        require(
+            amount > 0,
+            "Invalid amount"
+        );
 
         require(
             ERC20Token(_tokenAddress).transfer(
                 msg.sender,
                 amount
-            ), "Claim failed");
+            ),
+            "Claim failed"
+        );
 
         emit Claim(
             msg.sender,
             amount
         );
 
-        return true;
+        return amount;
     }
 
     /**
-    * @dev withdraw of stake
+     * @notice Withdraws the provided amount of staked
+     *
+     * @param amount The amount to withdraw
     */
-    function withdraw(uint256 amount)  external returns(bool) {
-        require(_stakeMap[msg.sender].amount >= amount, "Exceeded amount");
+    function withdraw(uint256 amount) external {
+        require(
+            _stakedMap[msg.sender].amount >= amount,
+            "Exceeded amount"
+        );
 
         require(
             ERC20Token(_tokenAddress).transfer(
                 msg.sender,
                 amount
-            ), "Withdraw failed");
+            ),
+            "Withdraw failed"
+        );
 
         emit Withdraw(
             msg.sender,
@@ -135,9 +151,7 @@ contract Staking is Storage {
         );
 
         _totalStaked = _totalStaked.sub(amount);
-        _stakeMap[msg.sender].amount = _stakeMap[msg.sender].amount.sub(amount);
-
-        return true;
+        _stakedMap[msg.sender].amount = _stakedMap[msg.sender].amount.sub(amount);
     }
 
     /*****************
@@ -145,8 +159,30 @@ contract Staking is Storage {
      *****************/
 
     /**
-     * @notice Updates the Reward Provider address, the only address other than the
-     * owner that can provide reward.
+     * @notice Updates the minimum stake amount.
+     *
+     * @param newMinimumStakeAmount The amount to be allowed as minimum to users
+     */
+    function setMinimumStakeAmount(uint256 newMinimumStakeAmount) external {
+        require(
+            msg.sender == _owner || msg.sender == _rewardProvider,
+            "Only the owner or reward provider can set the minimum stake amount"
+        );
+
+        require(
+            newMinimumStakeAmount > 0,
+            "Invalid amount"
+        );
+
+        uint256 oldValue = _minimumStakeAmount;
+        _minimumStakeAmount = newMinimumStakeAmount;
+
+        emit MinimumStakeAmountUpdate(oldValue, _minimumStakeAmount);
+    }
+
+    /**
+     * @notice Updates the Reward Provider address, the only address that can provide reward.
+     *
      * @param newRewardProvider The address of the new Reward Provider
      */
     function setRewardProvider(address newRewardProvider) external {
@@ -154,6 +190,7 @@ contract Staking is Storage {
             msg.sender == _owner,
             "Only the owner can set the reward provider address"
         );
+
         address oldValue = _rewardProvider;
         _rewardProvider = newRewardProvider;
 
@@ -161,100 +198,108 @@ contract Staking is Storage {
     }
 
     /**
-     * @notice Updates the reward policy, the only address other than the
-     * owner that can provide reward.
+     * @notice Updates the reward policy, the only address that can provide reward.
+     *
      * @param newRewardCycle New reward cycle
      * @param newRewardAmount New reward amount a cycle
      */
-    function setRewardPolicy(uint256 newRewardCycle, uint256 newRewardAmount) public returns (uint256) {
+    function setRewardPolicy(uint256 newRewardCycle, uint256 newRewardAmount) external {
         require(
-            msg.sender == _owner,
-            "Only the owner can set the reward policy"
+            msg.sender == _rewardProvider,
+            "Only the reward provider can set the reward policy"
         );
+
         _prevRewardCycle = _rewardCycle;
-        _prevReward = _rewardAmount;
+        _prevRewardAmount = _rewardAmount;
         _prevRewardCycleTimestamp = _rewardCycleTimestamp;
         _rewardCycle = newRewardCycle;
         _rewardAmount = newRewardAmount;
         _rewardCycleTimestamp = block.timestamp;
 
-        emit RewardPolicyUpdate(_prevRewardCycle, _prevReward, _rewardCycle, _rewardAmount, _rewardCycleTimestamp);
-
-        return _rewardCycleTimestamp;
+        emit RewardPolicyUpdate(_prevRewardCycle, _prevRewardAmount, _rewardCycle, _rewardAmount, _rewardCycleTimestamp);
     }
 
     /**
-     * @notice Reserve reward pool.
-     * @param newRewardCycle New reward cycle
-     * @param newRewardAmount New reward amount a cycle
+     * @notice Deposits the provided amount into reward pool.
+     *
+     * @param amount The amount to deposit into reward pool
      */
-    function depositRewardPool(uint256 amount) public returns (uint256) {
+    function depositRewardPool(uint256 amount) external {
         require(
             msg.sender == _rewardProvider,
             "Only the reword provider can deposit"
         );
+
         require(
             ERC20Token(_tokenAddress).transferFrom(
                 msg.sender,
                 address(this),
                 amount
-            ), "Deposit reward failed"
+            ),
+            "Deposit reward pool failed"
         );
 
-        _rewardPool = _rewardPool.add(amount);
+        _rewardPoolAmount = _rewardPoolAmount.add(amount);
 
         emit DepositRewardPool(
             msg.sender,
             amount
         );
-
-        return _rewardPool;
     }
 
     /**
-    * @dev withdraw of reward pool
-    */
-    function withdrawRewardPool(uint256 amount)  external returns(bool) {
+     * @notice Withdraws the provided amount from reward pool.
+     *
+     * @param amount The amount to withdraw from reward pool
+     */
+    function withdrawRewardPool(uint256 amount) external {
         require(
             msg.sender == _rewardProvider,
             "Only the reword provider can withdraw"
         );
 
-        require(_rewardPool >= amount, "Exceeded amount");
+        require(
+            _rewardPoolAmount >= amount,
+            "Exceeded amount"
+        );
 
         require(
             ERC20Token(_tokenAddress).transfer(
                 msg.sender,
                 amount
-            ), "Withdraw failed");
+            ),
+            "Withdraw failed"
+        );
+
+        _rewardPoolAmount = _rewardPoolAmount.sub(amount);
 
         emit WithdrawRewardPool(
             msg.sender,
             amount
         );
-
-        _rewardPool = _rewardPool.sub(amount);
-
-        return true;
     }
 
     /**
-    * @dev Approve claim reward
-    */
-    function approveClaim(uint256 toAddress, uint256 amount, uint256 nonce) public returns (bool) {
+     * @notice Approves the provided address to claim the provided amount.
+     *
+     * @param toAddress The address can claim reward
+     * @param amount The amount to claim
+     */
+    function approveClaim(uint256 toAddress, uint256 amount) returns(uint256) {
         require(
             msg.sender == _rewardProvider,
             "Only the reword provider can approve"
         );
 
-        _approvedClaimMap[toAddress][nonce] = amount;
+        _claimNonce = _claimNonce.add(1);
+        _approvedClaimMap[toAddress][_claimNonce] = amount;
 
         emit ApproveClaim(
-            msg.sender,
+            toAddress,
             amount,
-            nonce
+            _claimNonce
         );
-
-        return true;
+        
+        return _claimNonce;
     }
 }
