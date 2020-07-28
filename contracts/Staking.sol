@@ -116,6 +116,11 @@ contract Staking is Storage {
         );
 
         require(
+            _rewardPoolAmount >= amount,
+            "Insufficient reward pool"
+        );
+
+        require(
             ERC20Token(_tokenAddress).transfer(
                 msg.sender,
                 amount
@@ -124,6 +129,7 @@ contract Staking is Storage {
         );
 
         delete _approvedClaimMap[msg.sender][nonce];
+        _rewardPoolAmount = _rewardPoolAmount.sub(amount);
 
         emit Claim(
             msg.sender,
@@ -361,6 +367,11 @@ contract Staking is Storage {
             "Only the reword provider can approve"
         );
 
+        require(
+            _rewardPoolAmount >= amount,
+            "Insufficient reward pool"
+        );
+
         _claimNonce = _claimNonce.add(1);
         _approvedClaimMap[toAddress][_claimNonce] = amount;
 
@@ -369,7 +380,7 @@ contract Staking is Storage {
             amount,
             _claimNonce
         );
-        
+
         return _claimNonce;
     }
 }
