@@ -19,11 +19,11 @@ contract Registry is Upgradeable {
             // The pointer to the free memory slot
             let ptr := mload(0x40)
             // Copy function signature and arguments from calldata at zero position into memory at pointer position
-            calldatacopy(ptr, 0x0, calldatasize())
+            calldatacopy(ptr, 0x0, calldatasize)
             // Delegatecall method of the implementation contract, returns 0 on error
-            let result := delegatecall(gas(), _impl, ptr, calldatasize(), 0x0, 0)
+            let result := delegatecall(gas, _impl, ptr, calldatasize, 0x0, 0)
             // Get the size of the last return data
-            let size := returndatasize()
+            let size := returndatasize
             // Copy the size length of bytes from return data at zero position to pointer position
             returndatacopy(ptr, 0x0, size)
             // Depending on result value

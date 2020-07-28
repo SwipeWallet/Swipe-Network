@@ -1,6 +1,6 @@
 require('dotenv').config()
 const {use, expect} = require('chai')
-const {createMockProvider, getWallets, deployContract, solidity} = require('ethereum-waffle')
+const {MockProvider, deployContract, solidity} = require('ethereum-waffle')
 const ethers = require('ethers')
 
 use(solidity)
@@ -12,7 +12,7 @@ const REGISTRY = require('../build/Registry')
 const STAKING = require('../build/Staking')
 
 describe('Tests', () => {
-    const [walletOwner, walletNewOwner, walletRewardProvider, walletNewRewardProvider] = getWallets(createMockProvider())
+    const [walletOwner, walletNewOwner, walletRewardProvider, walletNewRewardProvider] = new MockProvider({ total_accounts: 4 }).getWallets()
     let localSxpToken
     let registry
     let staking
@@ -20,20 +20,24 @@ describe('Tests', () => {
     beforeEach(async () => {
         localSxpToken = await deployContract(walletOwner, LOCALSXPTOKEN, [])
         registry = await deployContract(walletOwner, REGISTRY, [])
-        staking = await deployContract(walletOwner, STAKING, [localSxpToken.address, walletRewardProvider.address])
+        staking = await deployContract(walletOwner, STAKING, [])
     })
 
     describe('Settings', () => {
+        beforeEach(async () => {
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletOwner.address, localSxpToken.address, walletRewardProvider.address])
+            await registry.setImplementationAndCall(staking.address, calldata)
+        })
+
         it('Get mininum stake amount', async () => {
             const implementation = new ethers.Contract(registry.address, STAKING.interface, walletOwner)
-            expect(await implementation._minimumStakeAmount()).to.be.equal(1000 * (10**18))
+            expect(await implementation._minimumStakeAmount()).to.be.equal('1000000000000000000000')
         })
 
         it('Set mininum stake amount', async () => {
-            const calldata = getCalldata('setMininumStakeAmount', ['uint256'], [2000 * (10**18)])
-            await registry.setImplementationAndCall(staking.address, calldata)
             const implementation = new ethers.Contract(registry.address, STAKING.interface, walletOwner)
-            expect(await implementation._mininumStakeAmount()).to.be.equal(2000 * (10**18))
+            await implementation.setMinimumStakeAmount('2000000000000000000000')
+            expect(await implementation._minimumStakeAmount()).to.be.equal('2000000000000000000000')
         })
 
         it('Get reward provider', async () => {
@@ -42,25 +46,32 @@ describe('Tests', () => {
         })
         
         it('Set reward provider', async () => {
-            const calldata = getCalldata('setRewardProvider', ['address'], [walletNewRewardProvider.address])
-            await registry.setImplementationAndCall(staking.address, calldata)
             const implementation = new ethers.Contract(registry.address, STAKING.interface, walletOwner)
+            await implementation.setRewardProvider(walletNewRewardProvider.address)
             expect(await implementation._rewardProvider()).to.be.equal(walletNewRewardProvider.address)
+        })
+
+        it('Set reward provider by wrong owner', async () => {
+            const implementation = new ethers.Contract(registry.address, STAKING.interface, walletNewOwner)
+            await expect(implementation.setRewardProvider(walletNewRewardProvider.address)).to.be.reverted
         })
 
         it('Get reward policy', async () => {
             const implementation = new ethers.Contract(registry.address, STAKING.interface, walletOwner)
-            expect(await implementation._rewardCycle()).to.be.equal(1 * 24 * 3600 * 1000)
-            expect(await implementation._rewardAmount()).to.be.equal(40000 * (10**18))
+            expect(await implementation._rewardCycle()).to.be.equal('86400')
+            expect(await implementation._rewardAmount()).to.be.equal('40000000000000000000000')
+        })
+
+        it('Set reward policy by wrong provider', async () => {
+            const implementation = new ethers.Contract(registry.address, STAKING.interface, walletOwner)
+            await expect(implementation.setRewardPolicy('604800', '50000000000000000000000')).to.be.reverted
         })
 
         it('Set reward policy', async () => {
-            const calldata = getCalldata('setRewardPolicy', ['uint256', 'uint256'], [7 * 24 * 3600 * 1000, 50000 * (10**18)])
-            await registry.setImplementationAndCall(staking.address, calldata)
-            expect(await registry.getOwner()).to.eq(walletNewRewardProvider.address)
-            const implementation = new ethers.Contract(registry.address, STAKING.interface, walletOwner)
-            expect(await implementation._rewardCycle()).to.be.equal(7 * 24 * 3600 * 1000)
-            expect(await implementation._rewardAmount()).to.be.equal(50000 * (10**18))
+            const implementation = new ethers.Contract(registry.address, STAKING.interface, walletRewardProvider)
+            await implementation.setRewardPolicy('604800', '50000000000000000000000')
+            expect(await implementation._rewardCycle()).to.be.equal('604800')
+            expect(await implementation._rewardAmount()).to.be.equal('50000000000000000000000')
         })
     })
 

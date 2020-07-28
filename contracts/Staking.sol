@@ -7,7 +7,7 @@ import "./Storage.sol";
 
 /// @title Staking Contract
 /// @author growlot (@growlot)
-contract Staking is Ownable, Storage {
+contract Staking is Storage {
     using SafeMath for uint256;
 
     /// events
@@ -24,6 +24,15 @@ contract Staking is Ownable, Storage {
     event Withdraw(
         address indexed toAddress,
         uint256 indexed amount
+    );
+
+    event OwnershipTransferAuthorization(
+        address indexed authorizedAddress
+    );
+
+    event OwnerUpdate(
+        address indexed oldValue,
+        address indexed newValue
     );
 
     event MinimumStakeAmountUpdate(
@@ -60,14 +69,6 @@ contract Staking is Ownable, Storage {
         uint256 indexed nonce
     );
 
-    constructor(
-        address tokenAddress,
-        address rewardProvider
-    ) public {
-        _tokenAddress = tokenAddress;
-        _rewardProvider = rewardProvider;
-    }
-
     /********************
      * STANDARD ACTIONS *
      ********************/
@@ -97,8 +98,8 @@ contract Staking is Ownable, Storage {
             amount
         );
 
-        _stakedMap[msg.sender] = SafeMath.add(_stakedMap[msg.sender], amount);
-        _totalStaked = SafeMath.add(_totalStaked, amount);
+        _stakedMap[msg.sender] = _stakedMap[msg.sender].add(amount);
+        _totalStaked = _totalStaked.add(amount);
     }
 
     /**
@@ -154,13 +155,72 @@ contract Staking is Ownable, Storage {
             amount
         );
 
-        _totalStaked = SafeMath.sub(_totalStaked, amount);
-        _stakedMap[msg.sender] = SafeMath.sub(_stakedMap[msg.sender], amount);
+        _totalStaked = _totalStaked.sub(amount);
+        _stakedMap[msg.sender] = _stakedMap[msg.sender].sub(amount);
     }
 
     /*****************
      * ADMIN ACTIONS *
      *****************/
+
+    /**
+     * @notice Initializes contract.
+     *
+     * @param tokenAddress SXP token address
+     * @param rewardProvider The reward provider address
+     */
+    function initialize(
+        address owner,
+        address tokenAddress,
+        address rewardProvider
+    ) external {
+        require(
+            !_initialized,
+            "Contract has been already initialized"
+        );
+
+        _owner = owner;
+        _tokenAddress = tokenAddress;
+        _rewardProvider = rewardProvider;
+        _minimumStakeAmount = 1000 * (10**18);
+        _rewardCycle = 1 days;
+        _rewardAmount = 40000 * (10**18);
+        _initialized = true;
+    }
+
+    /**
+     * @notice Authorizes the transfer of ownership from _owner to the provided address.
+     * NOTE: No transfer will occur unless authorizedAddress calls assumeOwnership( ).
+     * This authorization may be removed by another call to this function authorizing
+     * the null address.
+     *
+     * @param authorizedAddress The address authorized to become the new owner.
+     */
+    function authorizeOwnershipTransfer(address authorizedAddress) external {
+        require(
+            msg.sender == _owner,
+            "Only the owner can authorize a new address to become owner"
+        );
+
+        _authorizedNewOwner = authorizedAddress;
+
+        emit OwnershipTransferAuthorization(_authorizedNewOwner);
+    }
+
+    /**
+     * @notice Transfers ownership of this contract to the _authorizedNewOwner.
+     */
+    function assumeOwnership() external {
+        require(
+            msg.sender == _authorizedNewOwner,
+            "Only the authorized new owner can accept ownership"
+        );
+        address oldValue = _owner;
+        _owner = _authorizedNewOwner;
+        _authorizedNewOwner = address(0);
+
+        emit OwnerUpdate(oldValue, _owner);
+    }
 
     /**
      * @notice Updates the minimum stake amount.
@@ -169,7 +229,7 @@ contract Staking is Ownable, Storage {
      */
     function setMinimumStakeAmount(uint256 newMinimumStakeAmount) external {
         require(
-            msg.sender == getOwner() || msg.sender == _rewardProvider,
+            msg.sender == _owner || msg.sender == _rewardProvider,
             "Only the owner or reward provider can set the minimum stake amount"
         );
 
@@ -191,7 +251,7 @@ contract Staking is Ownable, Storage {
      */
     function setRewardProvider(address newRewardProvider) external {
         require(
-            msg.sender == getOwner(),
+            msg.sender == _owner,
             "Only the owner can set the reward provider address"
         );
 
@@ -249,7 +309,7 @@ contract Staking is Ownable, Storage {
             "Deposit reward pool failed"
         );
 
-        _rewardPoolAmount = SafeMath.add(_rewardPoolAmount, amount);
+        _rewardPoolAmount = _rewardPoolAmount.add(amount);
 
         emit DepositRewardPool(
             msg.sender,
@@ -281,7 +341,7 @@ contract Staking is Ownable, Storage {
             "Withdraw failed"
         );
 
-        _rewardPoolAmount = SafeMath.sub(_rewardPoolAmount, amount);
+        _rewardPoolAmount = _rewardPoolAmount.sub(amount);
 
         emit WithdrawRewardPool(
             msg.sender,
@@ -301,7 +361,7 @@ contract Staking is Ownable, Storage {
             "Only the reword provider can approve"
         );
 
-        _claimNonce = SafeMath.add(_claimNonce, 1);
+        _claimNonce = _claimNonce.add(1);
         _approvedClaimMap[toAddress][_claimNonce] = amount;
 
         emit ApproveClaim(
