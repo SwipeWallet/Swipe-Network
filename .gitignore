@@ -3,4 +3,5 @@ node_modules
 build/*
 .env
 .DS_Store
+yarn.lock
 yarn-error.log
