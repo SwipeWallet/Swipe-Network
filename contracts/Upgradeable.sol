@@ -1,4 +1,4 @@
-pragma solidity 0.5.16;
+pragma solidity ^0.5.0;
 
 import "./Ownable.sol";
 
@@ -20,7 +20,6 @@ contract Upgradeable is Ownable {
     constructor() public Ownable() {}
 
     /// @notice Returns the current implementation contract address
-    /// @return Implementaion contract address
     function getImplementation() public view returns (address implementation) {
         bytes32 position = implementationPosition;
         assembly {
@@ -32,9 +31,9 @@ contract Upgradeable is Ownable {
     /// @param _newImplementation New implementation contract address
     function setImplementation(address _newImplementation) public {
         requireOwner();
-        require(_newImplementation != address(0), "d784d42601"); // d784d42601 - new implementation must have non-zero address
+        require(_newImplementation != address(0), "New implementation must have non-zero address");
         address currentImplementation = getImplementation();
-        require(currentImplementation != _newImplementation, "d784d42602"); // d784d42602 - new implementation must have new address
+        require(currentImplementation != _newImplementation, "New implementation must have new address");
         bytes32 position = implementationPosition;
         assembly {
             sstore(position, _newImplementation)
@@ -55,7 +54,7 @@ contract Upgradeable is Ownable {
             (bool success, ) = address(this).call.value(msg.value)(
                 _newImplementaionCallData
             );
-            require(success, "e9c8588d01"); // e9c8588d01 - delegatecall has failed
+            require(success, "Delegatecall has failed");
         }
     }
 }

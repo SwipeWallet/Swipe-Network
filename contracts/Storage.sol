@@ -1,10 +1,10 @@
-pragma solidity ^0.5.16;
+pragma solidity ^0.5.0;
 
 contract Storage {
     address public _tokenAddress;
 
     uint256 public _minimumStakeAmount = 1000 * (10**18);
-    mapping (address => amount)) public _stakedMap;
+    mapping (address => uint256) public _stakedMap;
     uint256 public _totalStaked;
 
     uint256 public _prevRewardCycle = 0;
@@ -13,9 +13,9 @@ contract Storage {
     uint256 public _rewardCycle = 1 days;
     uint256 public _rewardAmount = 40000 * (10**18);
     uint256 public _rewardCycleTimestamp = 0;
-    uint256 public _rewardPool = 0;
+    uint256 public _rewardPoolAmount = 0;
     address public _rewardProvider;
 
     uint256 public _claimNonce = 0;
-    mapping (address => mapping (uint256 => amount)))) public _approvedClaimMap;
+    mapping (address => mapping (uint256 => uint256)) public _approvedClaimMap;
 }

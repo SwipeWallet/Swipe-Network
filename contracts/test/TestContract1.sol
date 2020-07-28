@@ -1,4 +1,4 @@
-pragma solidity ^0.5.16;
+pragma solidity ^0.5.0;
 
 /// @title Test 1 Proxy Contract
 /// @author growlot (@growlot)

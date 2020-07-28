@@ -1,11 +1,15 @@
-pragma solidity ^0.5.16;
+pragma solidity ^0.5.0;
 
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "./ERC20Token.sol";
+import "./Ownable.sol";
+import "./Storage.sol";
 
 /// @title Staking Contract
 /// @author growlot (@growlot)
-contract Staking is Storage {
+contract Staking is Ownable, Storage {
+    using SafeMath for uint256;
+
     /// events
     event Stake(
         address indexed staker,
@@ -33,11 +37,11 @@ contract Staking is Storage {
     );
 
     event RewardPolicyUpdate(
-        uint256 indexed oldCycle,
-        uint256 indexed oldAmount,
-        uint256 indexed newCycle,
-        uint256 indexed newAmount,
-        uint256 indexed newTimeStamp,
+        uint256 oldCycle,
+        uint256 oldAmount,
+        uint256 newCycle,
+        uint256 newAmount,
+        uint256 newTimeStamp
     );
 
     event DepositRewardPool(
@@ -52,13 +56,13 @@ contract Staking is Storage {
 
     event ApproveClaim(
         address indexed toAddress,
-        uint256 indexed amount
+        uint256 indexed amount,
         uint256 indexed nonce
     );
 
     constructor(
-        address tokenAddress
-        address rewardProvider,
+        address tokenAddress,
+        address rewardProvider
     ) public {
         _tokenAddress = tokenAddress;
         _rewardProvider = rewardProvider;
@@ -93,8 +97,8 @@ contract Staking is Storage {
             amount
         );
 
-        _stakedMap[msg.sender].amount = _stakedMap[msg.sender].amount.add(amount);
-        _totalStaked = _totalStaked.add(amount);
+        _stakedMap[msg.sender] = SafeMath.add(_stakedMap[msg.sender], amount);
+        _totalStaked = SafeMath.add(_totalStaked, amount);
     }
 
     /**
@@ -107,7 +111,7 @@ contract Staking is Storage {
 
         require(
             amount > 0,
-            "Invalid amount"
+            "Invalid nonce"
         );
 
         require(
@@ -118,12 +122,12 @@ contract Staking is Storage {
             "Claim failed"
         );
 
+        delete _approvedClaimMap[msg.sender][nonce];
+
         emit Claim(
             msg.sender,
             amount
         );
-
-        return amount;
     }
 
     /**
@@ -133,7 +137,7 @@ contract Staking is Storage {
     */
     function withdraw(uint256 amount) external {
         require(
-            _stakedMap[msg.sender].amount >= amount,
+            _stakedMap[msg.sender] >= amount,
             "Exceeded amount"
         );
 
@@ -150,8 +154,8 @@ contract Staking is Storage {
             amount
         );
 
-        _totalStaked = _totalStaked.sub(amount);
-        _stakedMap[msg.sender].amount = _stakedMap[msg.sender].amount.sub(amount);
+        _totalStaked = SafeMath.sub(_totalStaked, amount);
+        _stakedMap[msg.sender] = SafeMath.sub(_stakedMap[msg.sender], amount);
     }
 
     /*****************
@@ -165,7 +169,7 @@ contract Staking is Storage {
      */
     function setMinimumStakeAmount(uint256 newMinimumStakeAmount) external {
         require(
-            msg.sender == _owner || msg.sender == _rewardProvider,
+            msg.sender == getOwner() || msg.sender == _rewardProvider,
             "Only the owner or reward provider can set the minimum stake amount"
         );
 
@@ -187,7 +191,7 @@ contract Staking is Storage {
      */
     function setRewardProvider(address newRewardProvider) external {
         require(
-            msg.sender == _owner,
+            msg.sender == getOwner(),
             "Only the owner can set the reward provider address"
         );
 
@@ -216,7 +220,13 @@ contract Staking is Storage {
         _rewardAmount = newRewardAmount;
         _rewardCycleTimestamp = block.timestamp;
 
-        emit RewardPolicyUpdate(_prevRewardCycle, _prevRewardAmount, _rewardCycle, _rewardAmount, _rewardCycleTimestamp);
+        emit RewardPolicyUpdate(
+            _prevRewardCycle,
+            _prevRewardAmount,
+            _rewardCycle,
+            _rewardAmount,
+            _rewardCycleTimestamp
+        );
     }
 
     /**
@@ -239,7 +249,7 @@ contract Staking is Storage {
             "Deposit reward pool failed"
         );
 
-        _rewardPoolAmount = _rewardPoolAmount.add(amount);
+        _rewardPoolAmount = SafeMath.add(_rewardPoolAmount, amount);
 
         emit DepositRewardPool(
             msg.sender,
@@ -271,7 +281,7 @@ contract Staking is Storage {
             "Withdraw failed"
         );
 
-        _rewardPoolAmount = _rewardPoolAmount.sub(amount);
+        _rewardPoolAmount = SafeMath.sub(_rewardPoolAmount, amount);
 
         emit WithdrawRewardPool(
             msg.sender,
@@ -285,13 +295,13 @@ contract Staking is Storage {
      * @param toAddress The address can claim reward
      * @param amount The amount to claim
      */
-    function approveClaim(uint256 toAddress, uint256 amount) returns(uint256) {
+    function approveClaim(address toAddress, uint256 amount) external returns(uint256) {
         require(
             msg.sender == _rewardProvider,
             "Only the reword provider can approve"
         );
 
-        _claimNonce = _claimNonce.add(1);
+        _claimNonce = SafeMath.add(_claimNonce, 1);
         _approvedClaimMap[toAddress][_claimNonce] = amount;
 
         emit ApproveClaim(

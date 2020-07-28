@@ -1,4 +1,4 @@
-pragma solidity 0.5.16;
+pragma solidity ^0.5.0;
 
 
 /// @title Ownable Contract
@@ -19,11 +19,10 @@ contract Ownable {
 
     /// @notice Check that requires msg.sender to be the current owner
     function requireOwner() internal view {
-        require(msg.sender == getOwner(), "55f1136901"); // 55f1136901 - sender must be owner
+        require(msg.sender == getOwner(), "Sender must be owner");
     }
 
     /// @notice Returns contract owner address
-    /// @return Owner address
     function getOwner() public view returns (address owner) {
         bytes32 position = ownerPosition;
         assembly {
@@ -45,7 +44,7 @@ contract Ownable {
     /// @param _newOwner New owner address
     function transferOwnership(address _newOwner) external {
         requireOwner();
-        require(_newOwner != address(0), "f2fde38b01"); // f2fde38b01 - new owner cant be zero address
+        require(_newOwner != address(0), "New owner cant be zero address");
         setOwner(_newOwner);
     }
 }
