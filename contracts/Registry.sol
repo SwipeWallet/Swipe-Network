@@ -1,10 +1,11 @@
 pragma solidity ^0.5.0;
 
 import "./Upgradeable.sol";
+import "./Event.sol";
 
 /// @title Upgradeable Registry Contract
 /// @author growlot (@growlot)
-contract Registry is Upgradeable {
+contract Registry is Upgradeable, Event {
     /// @notice Contract constructor
     /// @dev Calls Upgradable contract constructor
     constructor() public Upgradeable() {}

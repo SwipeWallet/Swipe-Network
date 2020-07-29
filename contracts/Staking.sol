@@ -1,73 +1,14 @@
 pragma solidity ^0.5.0;
 
-import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "./SafeMath.sol";
 import "./ERC20Token.sol";
-import "./Ownable.sol";
 import "./Storage.sol";
+import "./Event.sol";
 
 /// @title Staking Contract
 /// @author growlot (@growlot)
-contract Staking is Storage {
+contract Staking is Storage, Event {
     using SafeMath for uint256;
-
-    /// events
-    event Stake(
-        address indexed staker,
-        uint256 indexed amount
-    );
-
-    event Claim(
-        address indexed toAddress,
-        uint256 indexed amount
-    );
-
-    event Withdraw(
-        address indexed toAddress,
-        uint256 indexed amount
-    );
-
-    event OwnershipTransferAuthorization(
-        address indexed authorizedAddress
-    );
-
-    event OwnerUpdate(
-        address indexed oldValue,
-        address indexed newValue
-    );
-
-    event MinimumStakeAmountUpdate(
-        uint256 indexed oldValue,
-        uint256 indexed newValue
-    );
-
-    event RewardProviderUpdate(
-        address indexed oldValue,
-        address indexed newValue
-    );
-
-    event RewardPolicyUpdate(
-        uint256 oldCycle,
-        uint256 oldAmount,
-        uint256 newCycle,
-        uint256 newAmount,
-        uint256 newTimeStamp
-    );
-
-    event DepositRewardPool(
-        address indexed depositor,
-        uint256 indexed amount
-    );
-
-    event WithdrawRewardPool(
-        address indexed toAddress,
-        uint256 indexed amount
-    );
-
-    event ApproveClaim(
-        address indexed toAddress,
-        uint256 indexed amount,
-        uint256 indexed nonce
-    );
 
     /********************
      * STANDARD ACTIONS *
@@ -192,6 +133,15 @@ contract Staking is Storage {
         _rewardCycle = 1 days;
         _rewardAmount = 40000 * (10**18);
         _initialized = true;
+
+        emit Initialize(
+            _owner,
+            _tokenAddress,
+            _rewardProvider,
+            _minimumStakeAmount,
+            _rewardCycle,
+            _rewardAmount
+        );
     }
 
     /**
