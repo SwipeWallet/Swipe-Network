@@ -30,6 +30,7 @@ describe('Tests', () => {
         })
 
         it('Get mininum stake amount', async () => {
+            console.log(calldata);
             const implementation = new ethers.Contract(registry.address, STAKING.interface, walletOwner)
             expect(await implementation._minimumStakeAmount()).to.be.equal('1000000000000000000000')
         })
@@ -193,7 +194,7 @@ describe('Tests', () => {
             const claimNonce = await implementationByRewardProvider._claimNonce()
 
             const implementation = new ethers.Contract(registry.address, STAKING.interface, tokenHolder)
-            await expect(implementation.claim(claimNonce)).to.emit(implementation, 'Claim').withArgs(tokenHolder.address, amount)
+            await expect(implementation.claim(claimNonce)).to.emit(implementation, 'Claim').withArgs(tokenHolder.address, amount, claimNonce)
             const afterRewardPoolAmount = await implementation._rewardPoolAmount()
             expect(afterRewardPoolAmount).to.be.equal(remainAmount)
         })

@@ -74,7 +74,8 @@ contract Staking is Storage, Event {
 
         emit Claim(
             msg.sender,
-            amount
+            amount,
+            nonce
         );
     }
 
@@ -132,6 +133,7 @@ contract Staking is Storage, Event {
         _minimumStakeAmount = 1000 * (10**18);
         _rewardCycle = 1 days;
         _rewardAmount = 40000 * (10**18);
+        _rewardCycleTimestamp = block.timestamp;
         _initialized = true;
 
         emit Initialize(
@@ -140,7 +142,8 @@ contract Staking is Storage, Event {
             _rewardProvider,
             _minimumStakeAmount,
             _rewardCycle,
-            _rewardAmount
+            _rewardAmount,
+            _rewardCycleTimestamp
         );
     }
 

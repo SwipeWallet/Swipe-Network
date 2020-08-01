@@ -10,7 +10,8 @@ interface Event {
         address indexed rewardProvider,
         uint256 minimumStakeAmount,
         uint256 rewardCycle,
-        uint256 rewardAmount
+        uint256 rewardAmount,
+        uint256 _rewardCycleTimestamp
     );
 
     event Stake(
@@ -20,7 +21,8 @@ interface Event {
 
     event Claim(
         address indexed toAddress,
-        uint256 indexed amount
+        uint256 indexed amount,
+        uint256 indexed nonce
     );
 
     event Withdraw(
