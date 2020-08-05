@@ -14,7 +14,7 @@ contract Registry is Upgradeable, Event {
     /// @dev Fallback function allows to perform a delegatecall to the given implementation.
     /// This function will return whatever the implementation call returns
     function() external payable {
-        require(msg.data.length > 0, "9d96e2df01"); // 9d96e2df01 - calldata must not be empty
+        require(msg.data.length > 0, "Calldata must not be empty");
         address _impl = getImplementation();
         assembly {
             // The pointer to the free memory slot
