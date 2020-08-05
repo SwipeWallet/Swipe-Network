@@ -6,6 +6,9 @@ import "./Event.sol";
 /// @title Upgradeable Registry Contract
 /// @author growlot (@growlot)
 contract Registry is Upgradeable, Event {
+    /// @notice The name of this contract
+    string public constant name = "Swipe Proxy for Staking";
+
     /// @notice Contract constructor
     /// @dev Calls Upgradable contract constructor
     constructor() public Upgradeable() {}
