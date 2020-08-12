@@ -33,7 +33,7 @@ contract Timelock is TimelockStorage, TimelockEvent {
         emit Initialize(
             _admin,
             _delay
-        )
+        );
     }
 
     function() external payable { }
