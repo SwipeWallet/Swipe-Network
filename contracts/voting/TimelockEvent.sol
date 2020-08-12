@@ -1,6 +1,11 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.5.16;
 
-contract TimelockEvent {
+/// @title Voting Timelock Event Interface
+interface TimelockEvent {
+    event Initialized(
+        address admin,
+        uint delay
+    );
 
     event NewAdmin(
         address indexed newAdmin
@@ -40,5 +45,4 @@ contract TimelockEvent {
         bytes data,
         uint eta
     );
-    
 }

@@ -1,10 +1,11 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.5.16;
 
 import "../SafeMath.sol";
-import "./TimelockEvent.sol";
 import "./TimelockStorage.sol";
+import "./TimelockEvent.sol";
 
-contract Timelock is TimelockEvent, TimelockStorage {
+/// @title Voting Timelock Contract
+contract Timelock is TimelockStorage, TimelockEvent {
     using SafeMath for uint;
     
     function initialize(
