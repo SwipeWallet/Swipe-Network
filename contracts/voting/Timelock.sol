@@ -7,69 +7,89 @@ import "./TimelockStorage.sol";
 contract Timelock is TimelockEvent, TimelockStorage {
     using SafeMath for uint;
     
-    constructor(/*address admin_, uint delay_*/) public {
-        //require(delay_ >= MINIMUM_DELAY, "Timelock::constructor: Delay must exceed minimum delay.");
-        //require(delay_ <= MAXIMUM_DELAY, "Timelock::setDelay: Delay must not exceed maximum delay.");
+    function initialize(
+        address admin,
+        uint delay
+    ) external {
+        require(
+            !_initialized,
+            "Contract has been already initialized"
+        );
+        require(
+            delay >= MINIMUM_DELAY,
+            "Timelock::constructor: Delay must exceed minimum delay."
+        );
+        require(
+            delay <= MAXIMUM_DELAY,
+            "Timelock::setDelay: Delay must not exceed maximum delay."
+        );
 
-        admin = address(0); //admin_;
-        delay = 1; //delay_;
+        _admin = admin;
+        _delay = delay;
+
+        _initialized = true;
+
+        emit Initialize(
+            _admin,
+            _delay
+        )
     }
 
     function() external payable { }
 
-    function setDelay(uint delay_) public {
+    function setDelay(uint delay) public {
         require(msg.sender == address(this), "Timelock::setDelay: Call must come from Timelock.");
-        require(delay_ >= MINIMUM_DELAY, "Timelock::setDelay: Delay must exceed minimum delay.");
-        require(delay_ <= MAXIMUM_DELAY, "Timelock::setDelay: Delay must not exceed maximum delay.");
-        delay = delay_;
+        require(delay >= MINIMUM_DELAY, "Timelock::setDelay: Delay must exceed minimum delay.");
+        require(delay <= MAXIMUM_DELAY, "Timelock::setDelay: Delay must not exceed maximum delay.");
+        _delay = delay;
 
-        emit NewDelay(delay);
+        emit NewDelay(_delay);
     }
 
     function acceptAdmin() public {
-        require(msg.sender == pendingAdmin, "Timelock::acceptAdmin: Call must come from pendingAdmin.");
-        admin = msg.sender;
-        pendingAdmin = address(0);
+        require(msg.sender == _pendingAdmin, "Timelock::acceptAdmin: Call must come from pendingAdmin.");
+        _admin = msg.sender;
+        _pendingAdmin = address(0);
 
-        emit NewAdmin(admin);
+        emit NewAdmin(_admin);
     }
 
-    function setPendingAdmin(address pendingAdmin_) public {
+    function setPendingAdmin(address pendingAdmin) public {
         require(msg.sender == address(this), "Timelock::setPendingAdmin: Call must come from Timelock.");
-        pendingAdmin = pendingAdmin_;
+        _pendingAdmin = pendingAdmin;
 
-        emit NewPendingAdmin(pendingAdmin);
+        emit NewPendingAdmin(_pendingAdmin);
     }
 
     function queueTransaction(address target, uint value, string memory signature, bytes memory data, uint eta) public returns (bytes32) {
-        require(msg.sender == admin, "Timelock::queueTransaction: Call must come from admin.");
-        require(eta >= getBlockTimestamp().add(delay), "Timelock::queueTransaction: Estimated execution block must satisfy delay.");
+        require(msg.sender == _admin, "Timelock::queueTransaction: Call must come from admin.");
+        require(eta >= getBlockTimestamp().add(_delay), "Timelock::queueTransaction: Estimated execution block must satisfy delay.");
 
         bytes32 txHash = keccak256(abi.encode(target, value, signature, data, eta));
-        queuedTransactions[txHash] = true;
+        _queuedTransactions[txHash] = true;
 
         emit QueueTransaction(txHash, target, value, signature, data, eta);
         return txHash;
     }
 
     function cancelTransaction(address target, uint value, string memory signature, bytes memory data, uint eta) public {
-        require(msg.sender == admin, "Timelock::cancelTransaction: Call must come from admin.");
+        require(msg.sender == _admin, "Timelock::cancelTransaction: Call must come from admin.");
 
         bytes32 txHash = keccak256(abi.encode(target, value, signature, data, eta));
-        queuedTransactions[txHash] = false;
+        _queuedTransactions[txHash] = false;
 
         emit CancelTransaction(txHash, target, value, signature, data, eta);
     }
 
     function executeTransaction(address target, uint value, string memory signature, bytes memory data, uint eta) public payable returns (bytes memory) {
-        require(msg.sender == admin, "Timelock::executeTransaction: Call must come from admin.");
+        require(msg.sender == _admin, "Timelock::executeTransaction: Call must come from admin.");
 
         bytes32 txHash = keccak256(abi.encode(target, value, signature, data, eta));
-        require(queuedTransactions[txHash], "Timelock::executeTransaction: Transaction hasn't been queued.");
+        require(_queuedTransactions[txHash], "Timelock::executeTransaction: Transaction hasn't been queued.");
         require(getBlockTimestamp() >= eta, "Timelock::executeTransaction: Transaction hasn't surpassed time lock.");
         require(getBlockTimestamp() <= eta.add(GRACE_PERIOD), "Timelock::executeTransaction: Transaction is stale.");
 
-        queuedTransactions[txHash] = false;
+        _queuedTransactions[txHash] = false;
 
         bytes memory callData;
 
