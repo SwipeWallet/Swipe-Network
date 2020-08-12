@@ -7,51 +7,86 @@ import "./VotingEvent.sol";
 /// @title Voting Contract
 contract Voting is VotingStorage, VotingEvent {
 
-    /// @notice The name of this contract
-    string public constant name = "Swipe Voting";
-
-    /// @notice The number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed
-    function quorumVotes() public pure returns (uint) { return 400000e18; } // 400,000
-
-    /// @notice The number of votes required in order for a voter to become a proposer
-    function proposalThreshold() public pure returns (uint) { return 100000e18; } // 100,000
-
-    /// @notice The maximum number of actions that can be included in a proposal
-    function proposalMaxOperations() public pure returns (uint) { return 10; } // 10 actions
-
-    /// @notice The delay before voting on a proposal may take place, once proposed
-    function votingDelay() public pure returns (uint) { return 1; } // 1 block
-
-    /// @notice The duration of voting on a proposal, in blocks
-    function votingPeriod() public pure returns (uint) { return 17280; } // ~3 days in blocks (assuming 15s blocks)
-
     function initialize(
-        address timelock,
-        address swipe,
+        address timelockAddress,
+        address stakingAddress,
         address guardian
     ) public {
-        _timelock = TimelockInterface(timelock);
-        _swipe = SwipeInterface(swipe);
+        _timelock = TimelockInterface(timelockAddress);
+        _staking = StakingInterface(stakingAddress);
         _guardian = guardian;
 
         _initialized = true;
 
         emit Initialize(
-            timelock,
-            swipe,
+            timelockAddress,
+            stakingAddress,
             guardian
         );
     }
 
+    /// @notice The name of this contract
+    string public constant name = "Swipe Voting";
+
+    /// @notice The number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed
+    function setQuorumVotes(uint256 quorumVotes) external {
+        require(
+            msg.sender == _guardian,
+            "Swipe Voting::setting: quorumVotes can be set by guardian"
+        );
+
+        _quorumVotes = quorumVotes; 
+    }
+
+    /// @notice The number of votes required in order for a voter to become a proposer
+    function setProposalThreshold(uint256 proposalThreshold) external {
+        require(
+            msg.sender == _guardian,
+            "Swipe Voting::setting: proposalThreshold can be set by guardian"
+        );
+        
+        _proposalThreshold = proposalThreshold;
+    }
+
+    /// @notice The maximum number of actions that can be included in a proposal
+    function setProposalMaxOperations(uint256 proposalMaxOperations) external {
+        require(
+            msg.sender == _guardian,
+            "Swipe Voting::setting: proposalMaxOperations can be set by guardian"
+        );
+        
+        _proposalMaxOperations = proposalMaxOperations;
+    }
+
+    /// @notice The delay before voting on a proposal may take place, once proposed
+    function setVotingDelay(uint256 votingDelay) external {
+        require(
+            msg.sender == _guardian,
+            "Swipe Voting::setting: votingDelay can be set by guardian"
+        );
+        
+        _votingDelay = votingDelay;
+    }
+
+    /// @notice The duration of voting on a proposal, in blocks
+    function setVotingPeriod(uint256 votingPeriod) external {
+        require(
+            msg.sender == _guardian,
+            "Swipe Voting::setting: votingPeriod can be set by guardian"
+        );
+        
+        votingPeriod = votingPeriod;
+    }
+
     function propose(
         address[] memory targets,
-        uint[] memory values,
+        uint256[] memory values,
         string[] memory signatures,
         bytes[] memory calldatas,
         string memory description
-    ) public returns (uint) {
+    ) public returns (uint256) {
         require(
-            _swipe.getPriorVotes(msg.sender, sub256(block.number, 1)) > proposalThreshold(),
+            _staking.getStakedMap(msg.sender) > _proposalThreshold,
             "Swipe Voting::propose: proposer votes below proposal threshold"
         );
 
@@ -66,11 +101,11 @@ contract Voting is VotingStorage, VotingEvent {
         );
 
         require(
-            targets.length <= proposalMaxOperations(),
+            targets.length <= _proposalMaxOperations,
             "Swipe Voting::propose: too many actions"
         );
 
-        uint latestProposalId = _latestProposalIds[msg.sender];
+        uint256 latestProposalId = _latestProposalIds[msg.sender];
         if (latestProposalId != 0) {
             ProposalState proposersLatestProposalState = state(latestProposalId);
             require(
@@ -84,8 +119,8 @@ contract Voting is VotingStorage, VotingEvent {
             );
         }
 
-        uint startBlock = add256(block.number, votingDelay());
-        uint endBlock = add256(startBlock, votingPeriod());
+        uint256 startBlock = add256(block.number, _votingDelay);
+        uint256 endBlock = add256(startBlock, _votingPeriod);
 
         _proposalCount++;
         Proposal memory newProposal = Proposal({
@@ -98,8 +133,8 @@ contract Voting is VotingStorage, VotingEvent {
             calldatas: calldatas,
             startBlock: startBlock,
             endBlock: endBlock,
-            forVotes: 0,
-            againstVotes: 0,
+            upVotes: 0,
+            downVotes: 0,
             canceled: false,
             executed: false
         });
@@ -123,7 +158,7 @@ contract Voting is VotingStorage, VotingEvent {
     }
 
     function queue(
-        uint proposalId
+        uint256 proposalId
     ) public {
         require(
             state(proposalId) == ProposalState.Succeeded,
@@ -131,8 +166,8 @@ contract Voting is VotingStorage, VotingEvent {
         );
 
         Proposal storage proposal = _proposals[proposalId];
-        uint eta = add256(block.timestamp, _timelock.delay());
-        for (uint i = 0; i < proposal.targets.length; i++) {
+        uint256 eta = add256(block.timestamp, _timelock.delay());
+        for (uint256 i = 0; i < proposal.targets.length; i++) {
             _queueOrRevert(proposal.targets[i], proposal.values[i], proposal.signatures[i], proposal.calldatas[i], eta);
         }
         proposal.eta = eta;
@@ -145,10 +180,10 @@ contract Voting is VotingStorage, VotingEvent {
 
     function _queueOrRevert(
         address target,
-        uint value,
+        uint256 value,
         string memory signature,
         bytes memory data,
-        uint eta
+        uint256 eta
     ) internal {
         require(
             !_timelock.queuedTransactions(keccak256(abi.encode(target, value, signature, data, eta))),
@@ -159,7 +194,7 @@ contract Voting is VotingStorage, VotingEvent {
     }
 
     function execute(
-        uint proposalId
+        uint256 proposalId
     ) public payable {
         require(
             state(proposalId) == ProposalState.Queued,
@@ -168,7 +203,7 @@ contract Voting is VotingStorage, VotingEvent {
 
         Proposal storage proposal = _proposals[proposalId];
         proposal.executed = true;
-        for (uint i = 0; i < proposal.targets.length; i++) {
+        for (uint256 i = 0; i < proposal.targets.length; i++) {
             _timelock.executeTransaction.value(
                 proposal.values[i]
             )(proposal.targets[i], proposal.values[i], proposal.signatures[i], proposal.calldatas[i], proposal.eta);
@@ -178,7 +213,7 @@ contract Voting is VotingStorage, VotingEvent {
     }
 
     function cancel(
-        uint proposalId
+        uint256 proposalId
     ) public {
         ProposalState state = state(proposalId);
 
@@ -190,12 +225,12 @@ contract Voting is VotingStorage, VotingEvent {
         Proposal storage proposal = _proposals[proposalId];
 
         require(
-            msg.sender == _guardian || _swipe.getPriorVotes(proposal.proposer, sub256(block.number, 1)) < proposalThreshold(),
+            msg.sender == _guardian || _staking.getStakedMap(proposal.proposer) < _proposalThreshold,
             "Swipe Voting::cancel: proposer above threshold"
         );
 
         proposal.canceled = true;
-        for (uint i = 0; i < proposal.targets.length; i++) {
+        for (uint256 i = 0; i < proposal.targets.length; i++) {
             _timelock.cancelTransaction(
                 proposal.targets[i],
                 proposal.values[i],
@@ -211,21 +246,21 @@ contract Voting is VotingStorage, VotingEvent {
     }
 
     function getActions(
-        uint proposalId
-    ) public view returns (address[] memory targets, uint[] memory values, string[] memory signatures, bytes[] memory calldatas) {
+        uint256 proposalId
+    ) public view returns (address[] memory targets, uint256[] memory values, string[] memory signatures, bytes[] memory calldatas) {
         Proposal storage p = _proposals[proposalId];
         return (p.targets, p.values, p.signatures, p.calldatas);
     }
 
     function getReceipt(
-        uint proposalId,
+        uint256 proposalId,
         address voter
     ) public view returns (Receipt memory) {
         return _proposals[proposalId].receipts[voter];
     }
 
     function state(
-        uint proposalId
+        uint256 proposalId
     ) public view returns (ProposalState) {
         require(
             _proposalCount >= proposalId && proposalId > 0,
@@ -239,7 +274,7 @@ contract Voting is VotingStorage, VotingEvent {
             return ProposalState.Pending;
         } else if (block.number <= proposal.endBlock) {
             return ProposalState.Active;
-        } else if (proposal.forVotes <= proposal.againstVotes || proposal.forVotes < quorumVotes()) {
+        } else if (proposal.upVotes <= proposal.downVotes || proposal.upVotes < _quorumVotes) {
             return ProposalState.Defeated;
         } else if (proposal.eta == 0) {
             return ProposalState.Succeeded;
@@ -253,14 +288,14 @@ contract Voting is VotingStorage, VotingEvent {
     }
 
     function castVote(
-        uint proposalId,
+        uint256 proposalId,
         bool support
     ) public {
-        return _castVote(msg.sender, proposalId, support);
+        return doCastVote(msg.sender, proposalId, support);
     }
 
     function castVoteBySig(
-        uint proposalId,
+        uint256 proposalId,
         bool support,
         uint8 v,
         bytes32 r,
@@ -276,17 +311,17 @@ contract Voting is VotingStorage, VotingEvent {
             "Swipe Voting::castVoteBySig: invalid signature"
         );
 
-        return _castVote(signatory, proposalId, support);
+        return doCastVote(signatory, proposalId, support);
     }
 
-    function _castVote(
+    function doCastVote(
         address voter,
-        uint proposalId,
+        uint256 proposalId,
         bool support
     ) internal {
         require(
             state(proposalId) == ProposalState.Active,
-            "Swipe Voting::_castVote: voting is closed"
+            "Swipe Voting::doCastVote: voting is closed"
         );
 
         Proposal storage proposal = _proposals[proposalId];
@@ -294,22 +329,22 @@ contract Voting is VotingStorage, VotingEvent {
         
         require(
             receipt.hasVoted == false,
-            "Swipe Voting::_castVote: voter already voted"
+            "Swipe Voting::doCastVote: voter already voted"
         );
         
-        uint96 votes = _swipe.getPriorVotes(voter, proposal.startBlock);
+        uint256 votes = _staking.getStakedMap(voter);
 
         if (support) {
-            proposal.forVotes = add256(proposal.forVotes, votes);
+            proposal.upVotes = add256(proposal.upVotes, votes);
         } else {
-            proposal.againstVotes = add256(proposal.againstVotes, votes);
+            proposal.downVotes = add256(proposal.downVotes, votes);
         }
 
         receipt.hasVoted = true;
         receipt.support = support;
         receipt.votes = votes;
 
-        emit VoteCast(
+        emit Vote(
             voter,
             proposalId,
             support,
@@ -317,60 +352,60 @@ contract Voting is VotingStorage, VotingEvent {
         );
     }
 
-    function __acceptAdmin() public {
+    function acceptAdmin() public {
         require(
             msg.sender == _guardian,
-            "Swipe Voting::__acceptAdmin: sender must be Swipe _guardian"
+            "Swipe Voting::acceptAdmin: sender must be Swipe guardian"
         );
 
         _timelock.acceptAdmin();
     }
 
-    function __abdicate() public {
+    function abdicate() public {
         require(
             msg.sender == _guardian,
-            "Swipe Voting::__abdicate: sender must be Swipe _guardian"
+            "Swipe Voting::abdicate: sender must be Swipe guardian"
         );
 
         _guardian = address(0);
     }
 
-    function __queueSetTimelockPendingAdmin(
+    function queueSetTimelockPendingAdmin(
         address newPendingAdmin,
-        uint eta
+        uint256 eta
     ) public {
         require(
             msg.sender == _guardian,
-            "Swipe Voting::__queueSetTimelockPendingAdmin: sender must be Swipe _guardian"
+            "Swipe Voting::queueSetTimelockPendingAdmin: sender must be Swipe guardian"
         );
 
         _timelock.queueTransaction(address(_timelock), 0, "setPendingAdmin(address)", abi.encode(newPendingAdmin), eta);
     }
 
-    function __executeSetTimelockPendingAdmin(
+    function executeSetTimelockPendingAdmin(
         address newPendingAdmin,
-        uint eta
+        uint256 eta
     ) public {
         require(
             msg.sender == _guardian,
-            "Swipe Voting::__executeSetTimelockPendingAdmin: sender must be Swipe _guardian"
+            "Swipe Voting::executeSetTimelockPendingAdmin: sender must be Swipe guardian"
         );
         _timelock.executeTransaction(address(_timelock), 0, "setPendingAdmin(address)", abi.encode(newPendingAdmin), eta);
     }
 
-    function add256(uint256 a, uint256 b) internal pure returns (uint) {
-        uint c = a + b;
+    function add256(uint256 a, uint256 b) internal pure returns (uint256) {
+        uint256 c = a + b;
         require(c >= a, "addition overflow");
         return c;
     }
 
-    function sub256(uint256 a, uint256 b) internal pure returns (uint) {
+    function sub256(uint256 a, uint256 b) internal pure returns (uint256) {
         require(b <= a, "subtraction underflow");
         return a - b;
     }
 
-    function getChainId() internal pure returns (uint) {
-        uint chainId;
+    function getChainId() internal pure returns (uint256) {
+        uint256 chainId;
         assembly {
             chainId := chainid()
         }
