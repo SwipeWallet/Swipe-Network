@@ -3,6 +3,12 @@ const {use, expect} = require('chai')
 const {MockProvider, deployContract, solidity} = require('ethereum-waffle')
 const ethers = require('ethers')
 
+const {
+    encodeParameters,
+    keccak256,
+    etherUnsigned
+} = require('./utils/ETH');
+
 use(solidity)
 
 const getCalldata = require('./helpers/getCalldata')
@@ -11,21 +17,31 @@ const LOCALSXPTOKEN = require("../build/LocalSXPToken");
 const REGISTRY = require('../build/Registry')
 const STAKING = require('../build/Staking')
 const STAKINGV2 = require('../build/StakingV2')
+const TIMELOCK = require('../build/Timelock');
 
 describe('Tests', () => {
-    const [walletOwner, walletNewOwner, walletRewardProvider, walletNewRewardProvider, tokenHolder] = new MockProvider({ total_accounts: 5 }).getWallets()
+    const [walletOwner, walletNewOwner, walletRewardProvider, walletNewRewardProvider, tokenHolder, walletAdmin, walletPendingAdmin, walletTarget] = new MockProvider({ total_accounts: 6 }).getWallets()
     let localSxpToken
     let registry
     let staking
+
+    let timelock
+    let value = etherUnsigned(0);
+    let data = encodeParameters(['uint256'], [etherUnsigned(7 * 24 * 60 * 60)]);
+    let eta;
+    let queuedTxHash;
+    let signature = 'setDelay(uint256)';
 
     beforeEach(async () => {
         localSxpToken = await deployContract(tokenHolder, LOCALSXPTOKEN, [])
         registry = await deployContract(walletOwner, REGISTRY, [])
         staking = await deployContract(walletOwner, STAKING, [])
+        timelock = await deployContract(walletAdmin, TIMELOCK, [])
     })
 
     describe('Settings', () => {
         beforeEach(async () => {
+            //console.log(walletOwner.address, localSxpToken.address, walletRewardProvider.address);
             const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletOwner.address, localSxpToken.address, walletRewardProvider.address])
             await registry.setImplementationAndCall(staking.address, calldata)
         })
@@ -385,6 +401,55 @@ describe('Tests', () => {
             expect(await implementation._upcomingValue()).to.be.equal('0')
             await expect(implementation.upcomingFunction('123456')).to.emit(implementation, 'UpcomingEvent').withArgs('0', '123456')
             expect(await implementation._upcomingValue()).to.be.equal('123456')
+        })
+    })
+
+    describe('Timelock', () => {
+        beforeEach(async () => {
+            const delayValue = await timelock._delay();            
+            const calldata = getCalldata('initialize', ['address', 'address', 'address', 'uint'], [walletAdmin.address, walletPendingAdmin.address, walletTarget.address, delayValue.toNumber()])
+            await registry.setImplementationAndCall(walletAdmin.address, calldata)
+
+            eta = etherUnsigned(100);
+            queuedTxHash = keccak256(
+                encodeParameters(
+                    ['address', 'uint256', 'string', 'bytes', 'uint256'],
+                    [walletTarget.address, value, signature, data, eta]
+                )
+            )
+        })
+
+        it('Check admin address', async () => {
+            expect (await registry.getImplementation()).to.be.equal(walletAdmin.address);
+        })
+
+        it('Get Delay Value', async () => {            
+            expect (await timelock._delay()).to.be.equal('0');
+        })
+
+        it('Set Delay Value', async() => {
+            const newDelayValue = 100000;
+            await expect(timelock.setDelay(newDelayValue)).to.be.reverted
+        })
+
+        it('Accept Admin', async() => {
+            await expect(timelock.acceptAdmin()).to.be.reverted
+        })
+
+        it('Set Pending Admin', async() => {
+            await expect(timelock.setPendingAdmin(walletPendingAdmin.address)).to.be.reverted
+        })
+
+        it('Make Queue Transaction', async() => {
+            await expect(await timelock.queueTransaction(walletTarget.address, value, signature, data, eta)).to.be.reverted
+        })
+
+        it ('Cancel Transaction', async() => {
+            await expect(await timelock.cancelTransaction(walletTarget.address, value, signature, data, eta)).to.be.reverted
+        })
+
+        it ('Execute Transaction', async() => {
+            await expect(await timelock.executeTransaction(walletTarget.address, value, signature, data, eta)).to.be.reverted
         })
     })
 })
