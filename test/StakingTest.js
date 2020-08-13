@@ -12,7 +12,7 @@ const REGISTRY = require('../build/SwipeRegistry')
 const STAKING = require('../build/Staking')
 const STAKINGV2 = require('../build/StakingV2')
 
-describe('Tests', () => {
+describe('Staking Tests', () => {
     const [walletOwner, walletNewOwner, walletRewardProvider, walletNewRewardProvider, tokenHolder] = new MockProvider({ total_accounts: 5 }).getWallets()
     let localSxpToken
     let registry
