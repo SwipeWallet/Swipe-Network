@@ -6,8 +6,8 @@ contract StakingStorage {
     /// @notice Initialized flag - indicates that initialization was made once
     bool internal _initialized;
 
-    address public _owner;
-    address public _authorizedNewOwner;
+    address public _guardian;
+    address public _authorizedNewGuardian;
 
     address public _tokenAddress;
 

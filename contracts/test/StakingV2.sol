@@ -10,8 +10,8 @@ contract StakingV2 is Staking, StakingStorageV2, StakingEventV2 {
 
     function upcomingFunction(uint256 newValue) external {
         require(
-            msg.sender == _owner,
-            "Only the owner can call"
+            msg.sender == _guardian,
+            "Only the guardian can call"
         );
 
         uint256 oldValue = _upcomingValue;

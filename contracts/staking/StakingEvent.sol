@@ -30,11 +30,11 @@ contract StakingEvent {
         uint256 indexed amount
     );
 
-    event OwnershipTransferAuthorization(
+    event GuardianshipTransferAuthorization(
         address indexed authorizedAddress
     );
 
-    event OwnerUpdate(
+    event GuardianUpdate(
         address indexed oldValue,
         address indexed newValue
     );
