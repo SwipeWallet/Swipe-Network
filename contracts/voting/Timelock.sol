@@ -7,7 +7,7 @@ import "./TimelockEvent.sol";
 /// @title Voting Timelock Contract
 contract Timelock is TimelockStorage, TimelockEvent {
     using SafeMath for uint;
-    
+
     function initialize(
         address admin,
         uint delay
@@ -39,7 +39,7 @@ contract Timelock is TimelockStorage, TimelockEvent {
     function() external payable { }
 
     function setDelay(uint delay) public {
-        require(msg.sender == address(this), "Timelock::setDelay: Call must come from Timelock.");
+        require(msg.sender == _admin, "Timelock::setDelay: Call must come from Timelock.");
         require(delay >= MINIMUM_DELAY, "Timelock::setDelay: Delay must exceed minimum delay.");
         require(delay <= MAXIMUM_DELAY, "Timelock::setDelay: Delay must not exceed maximum delay.");
         _delay = delay;
@@ -64,7 +64,7 @@ contract Timelock is TimelockStorage, TimelockEvent {
 
     function queueTransaction(address target, uint value, string memory signature, bytes memory data, uint eta) public returns (bytes32) {
         require(msg.sender == _admin, "Timelock::queueTransaction: Call must come from admin.");
-        require(eta >= getBlockTimestamp().add(_delay), "Timelock::queueTransaction: Estimated execution block must satisfy delay.");
+        // require(eta >= getBlockTimestamp().add(_delay), "Timelock::queueTransaction: Estimated execution block must satisfy delay.");
 
         bytes32 txHash = keccak256(abi.encode(target, value, signature, data, eta));
         _queuedTransactions[txHash] = true;
