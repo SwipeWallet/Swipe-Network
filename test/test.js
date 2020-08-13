@@ -386,5 +386,5 @@ describe('Tests', () => {
             await expect(implementation.upcomingFunction('123456')).to.emit(implementation, 'UpcomingEvent').withArgs('0', '123456')
             expect(await implementation._upcomingValue()).to.be.equal('123456')
         })
-    })    
+    })
 })

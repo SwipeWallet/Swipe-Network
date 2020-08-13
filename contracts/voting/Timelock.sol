@@ -7,6 +7,7 @@ import "./TimelockEvent.sol";
 /// @title Voting Timelock Contract
 contract Timelock is TimelockStorage, TimelockEvent {
     using SafeMath for uint;
+
     function initialize(
         address admin,
         uint delay
