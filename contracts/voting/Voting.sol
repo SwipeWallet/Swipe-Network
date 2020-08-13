@@ -1,11 +1,13 @@
 pragma solidity ^0.5.16;
 pragma experimental ABIEncoderV2;
 
+import "../SafeMath.sol";
 import "./VotingStorage.sol";
 import "./VotingEvent.sol";
 
 /// @title Voting Contract
 contract Voting is VotingStorage, VotingEvent {
+    using SafeMath for uint256;
 
     function initialize(
         address timelockAddress,
@@ -28,6 +30,20 @@ contract Voting is VotingStorage, VotingEvent {
     /// @notice The name of this contract
     string public constant name = "Swipe Voting";
 
+    /// @notice Set Swipe guardian 
+    function setGuardian(address guardian) public {
+        require(
+            msg.sender == address(this),
+            "Swipe Voting::setting: setGuardian call must come from Swipe Voting."
+        );
+
+        _guardian = guardian;
+
+        emit NewGuardian(
+            _guardian
+        );
+    }
+
     /// @notice The number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed
     function setQuorumVotes(uint256 quorumVotes) external {
         require(
@@ -36,6 +52,10 @@ contract Voting is VotingStorage, VotingEvent {
         );
 
         _quorumVotes = quorumVotes; 
+
+        emit NewQuorumVotes(
+            _quorumVotes
+        );
     }
 
     /// @notice The number of votes required in order for a voter to become a proposer
@@ -46,6 +66,10 @@ contract Voting is VotingStorage, VotingEvent {
         );
         
         _proposalThreshold = proposalThreshold;
+
+        emit NewProposalThreshold(
+            _proposalThreshold
+        );
     }
 
     /// @notice The maximum number of actions that can be included in a proposal
@@ -56,6 +80,10 @@ contract Voting is VotingStorage, VotingEvent {
         );
         
         _proposalMaxOperations = proposalMaxOperations;
+
+        emit NewProposalMaxOperations(
+            _proposalMaxOperations
+        );
     }
 
     /// @notice The delay before voting on a proposal may take place, once proposed
@@ -66,6 +94,10 @@ contract Voting is VotingStorage, VotingEvent {
         );
         
         _votingDelay = votingDelay;
+
+        emit NewVotingDelay(
+            _votingDelay
+        );
     }
 
     /// @notice The duration of voting on a proposal, in blocks
@@ -75,7 +107,11 @@ contract Voting is VotingStorage, VotingEvent {
             "Swipe Voting::setting: votingPeriod can be set by guardian"
         );
         
-        votingPeriod = votingPeriod;
+        _votingPeriod = votingPeriod;
+
+        emit NewVotingPeriod(
+            _votingPeriod
+        );
     }
 
     function propose(
@@ -119,8 +155,8 @@ contract Voting is VotingStorage, VotingEvent {
             );
         }
 
-        uint256 startBlock = add256(block.number, _votingDelay);
-        uint256 endBlock = add256(startBlock, _votingPeriod);
+        uint256 startBlock = block.number.add(_votingDelay);
+        uint256 endBlock = startBlock.add(_votingPeriod);
 
         _proposalCount++;
         Proposal memory newProposal = Proposal({
@@ -142,7 +178,7 @@ contract Voting is VotingStorage, VotingEvent {
         _proposals[newProposal.id] = newProposal;
         _latestProposalIds[newProposal.proposer] = newProposal.id;
 
-        emit ProposalCreated(
+        emit CreateProposal(
             newProposal.id,
             msg.sender,
             targets,
@@ -166,19 +202,19 @@ contract Voting is VotingStorage, VotingEvent {
         );
 
         Proposal storage proposal = _proposals[proposalId];
-        uint256 eta = add256(block.timestamp, _timelock.delay());
+        uint256 eta = block.timestamp.add(_timelock.delay());
         for (uint256 i = 0; i < proposal.targets.length; i++) {
-            _queueOrRevert(proposal.targets[i], proposal.values[i], proposal.signatures[i], proposal.calldatas[i], eta);
+            queueOrRevert(proposal.targets[i], proposal.values[i], proposal.signatures[i], proposal.calldatas[i], eta);
         }
         proposal.eta = eta;
 
-        emit ProposalQueued(
+        emit QueueProposal(
             proposalId,
             eta
         );
     }
 
-    function _queueOrRevert(
+    function queueOrRevert(
         address target,
         uint256 value,
         string memory signature,
@@ -187,7 +223,7 @@ contract Voting is VotingStorage, VotingEvent {
     ) internal {
         require(
             !_timelock.queuedTransactions(keccak256(abi.encode(target, value, signature, data, eta))),
-            "Swipe Voting::_queueOrRevert: proposal action already queued at eta"
+            "Swipe Voting::queueOrRevert: proposal action already queued at eta"
         );
 
         _timelock.queueTransaction(target, value, signature, data, eta);
@@ -209,7 +245,7 @@ contract Voting is VotingStorage, VotingEvent {
             )(proposal.targets[i], proposal.values[i], proposal.signatures[i], proposal.calldatas[i], proposal.eta);
         }
 
-        emit ProposalExecuted(proposalId);
+        emit ExecuteProposal(proposalId);
     }
 
     function cancel(
@@ -240,7 +276,7 @@ contract Voting is VotingStorage, VotingEvent {
             );
         }
 
-        emit ProposalCanceled(
+        emit CancelProposal(
             proposalId
         );
     }
@@ -280,7 +316,7 @@ contract Voting is VotingStorage, VotingEvent {
             return ProposalState.Succeeded;
         } else if (proposal.executed) {
             return ProposalState.Executed;
-        } else if (block.timestamp >= add256(proposal.eta, _timelock.GRACE_PERIOD())) {
+        } else if (block.timestamp >= proposal.eta.add(_timelock.GRACE_PERIOD())) {
             return ProposalState.Expired;
         } else {
             return ProposalState.Queued;
@@ -335,9 +371,9 @@ contract Voting is VotingStorage, VotingEvent {
         uint256 votes = _staking.getStakedMap(voter);
 
         if (support) {
-            proposal.upVotes = add256(proposal.upVotes, votes);
+            proposal.upVotes = proposal.upVotes.add(votes);
         } else {
-            proposal.downVotes = add256(proposal.downVotes, votes);
+            proposal.downVotes = proposal.downVotes.add(votes);
         }
 
         receipt.hasVoted = true;
@@ -391,17 +427,6 @@ contract Voting is VotingStorage, VotingEvent {
             "Swipe Voting::executeSetTimelockPendingAdmin: sender must be Swipe guardian"
         );
         _timelock.executeTransaction(address(_timelock), 0, "setPendingAdmin(address)", abi.encode(newPendingAdmin), eta);
-    }
-
-    function add256(uint256 a, uint256 b) internal pure returns (uint256) {
-        uint256 c = a + b;
-        require(c >= a, "addition overflow");
-        return c;
-    }
-
-    function sub256(uint256 a, uint256 b) internal pure returns (uint256) {
-        require(b <= a, "subtraction underflow");
-        return a - b;
     }
 
     function getChainId() internal pure returns (uint256) {

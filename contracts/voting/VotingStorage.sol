@@ -19,19 +19,19 @@ contract VotingStorage {
     address public _guardian;
 
     /// @notice The number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed
-    uint256 internal _quorumVotes;
+    uint256 public _quorumVotes;
 
     /// @notice The number of votes required in order for a voter to become a proposer
-    uint256 internal _proposalThreshold;
+    uint256 public _proposalThreshold;
 
     /// @notice The maximum number of actions that can be included in a proposal
-    uint256 internal _proposalMaxOperations;
+    uint256 public _proposalMaxOperations;
 
     /// @notice The delay before voting on a proposal may take place, once proposed
-    uint256 internal _votingDelay;
+    uint256 public _votingDelay;
 
     /// @notice The duration of voting on a proposal, in blocks
-    uint256 internal _votingPeriod;
+    uint256 public _votingPeriod;
 
     /// @notice The total number of proposals
     uint256 public _proposalCount;
