@@ -13,7 +13,7 @@ const STAKING = require('../build/Staking')
 const STAKINGV2 = require('../build/StakingV2')
 
 describe('Tests', () => {
-    const [walletOwner, walletNewOwner, walletRewardProvider, walletNewRewardProvider, tokenHolder] = new MockProvider({ total_accounts: 6 }).getWallets()
+    const [walletOwner, walletNewOwner, walletRewardProvider, walletNewRewardProvider, tokenHolder] = new MockProvider({ total_accounts: 5 }).getWallets()
     let localSxpToken
     let registry
     let staking
@@ -26,7 +26,6 @@ describe('Tests', () => {
 
     describe('Settings', () => {
         beforeEach(async () => {
-            //console.log(walletOwner.address, localSxpToken.address, walletRewardProvider.address);
             const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletOwner.address, localSxpToken.address, walletRewardProvider.address])
             await registry.setImplementationAndCall(staking.address, calldata)
         })
