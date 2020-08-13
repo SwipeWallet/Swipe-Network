@@ -1,12 +1,12 @@
 pragma solidity ^0.5.0;
 
-import "../Staking.sol";
-import "./StorageV2.sol";
-import "./EventV2.sol";
+import "../staking/Staking.sol";
+import "./StakingStorageV2.sol";
+import "./StakingEventV2.sol";
 
 /// @title StakingV2 Contract
 /// @author growlot (@growlot)
-contract StakingV2 is Staking, StorageV2, EventV2 {
+contract StakingV2 is Staking, StakingStorageV2, StakingEventV2 {
 
     function upcomingFunction(uint256 newValue) external {
         require(

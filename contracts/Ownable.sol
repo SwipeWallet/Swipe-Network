@@ -9,7 +9,7 @@ contract Ownable {
     /// constant pseudorandom slot of the contract storage
     /// (slot number obtained as a result of hashing a certain message),
     /// the probability of rewriting which is almost zero
-    bytes32 private constant ownerPosition = keccak256("owner");
+    bytes32 private constant _ownerPosition = keccak256("owner");
 
     /// @notice Contract constructor
     /// @dev Sets msg sender address as owner address
@@ -24,27 +24,27 @@ contract Ownable {
 
     /// @notice Returns contract owner address
     function getOwner() public view returns (address owner) {
-        bytes32 position = ownerPosition;
+        bytes32 position = _ownerPosition;
         assembly {
             owner := sload(position)
         }
     }
 
     /// @notice Sets new owner address
-    /// @param _newOwner New owner address
-    function setOwner(address _newOwner) internal {
-        bytes32 position = ownerPosition;
+    /// @param newOwner New owner address
+    function setOwner(address newOwner) internal {
+        bytes32 position = _ownerPosition;
         assembly {
-            sstore(position, _newOwner)
+            sstore(position, newOwner)
         }
     }
 
     /// @notice Transfers the control of the contract to new owner
     /// @dev msg.sender must be the current owner
-    /// @param _newOwner New owner address
-    function transferOwnership(address _newOwner) external {
+    /// @param newOwner New owner address
+    function transferOwnership(address newOwner) external {
         requireOwner();
-        require(_newOwner != address(0), "New owner cant be zero address");
-        setOwner(_newOwner);
+        require(newOwner != address(0), "New owner cant be zero address");
+        setOwner(newOwner);
     }
 }

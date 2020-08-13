@@ -1,21 +1,20 @@
 pragma solidity ^0.5.0;
 
+import "./NamedContract.sol";
 import "./Upgradeable.sol";
-import "./Event.sol";
 
 /// @title Upgradeable Registry Contract
 /// @author growlot (@growlot)
-contract Registry is Upgradeable, Event {
-    /// @notice The name of this contract
-    string public constant name = "Swipe Proxy for Staking";
-
+contract SwipeRegistry is NamedContract, Upgradeable {
     /// @notice Contract constructor
-    /// @dev Calls Upgradable contract constructor
-    constructor() public Upgradeable() {}
-
+    /// @dev Calls Upgradable contract constructor and sets contract name
+    constructor(string memory contractName) public Upgradeable() {
+        setContractName(contractName);
+    }
+    
     /// @notice Performs a delegatecall to the implementation contract.
     /// @dev Fallback function allows to perform a delegatecall to the given implementation.
-    /// This function will return whatever the implementation call returns
+    /// This function will return whatever the implementation call returns.
     function() external payable {
         require(msg.data.length > 0, "Calldata must not be empty");
         address _impl = getImplementation();

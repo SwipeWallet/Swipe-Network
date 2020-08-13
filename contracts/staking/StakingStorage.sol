@@ -1,11 +1,8 @@
 pragma solidity ^0.5.0;
 
-/// @title Storage Contract
+/// @title Staking Storage Contract
 /// @author growlot (@growlot)
-contract Storage {
-    /// @notice The name of this contract
-    string public constant name = "Swipe Staking";
-
+contract StakingStorage {
     /// @notice Initialized flag - indicates that initialization was made once
     bool internal _initialized;
 

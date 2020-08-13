@@ -1,13 +1,14 @@
 pragma solidity ^0.5.0;
 
 import "./SafeMath.sol";
-import "./ERC20Token.sol";
-import "./Storage.sol";
-import "./Event.sol";
+import "../IErc20Token.sol";
+import "../NamedContract.sol";
+import "./StakingStorage.sol";
+import "./StakingEvent.sol";
 
 /// @title Staking Contract
 /// @author growlot (@growlot)
-contract Staking is Storage, Event {
+contract Staking is NamedContract, StakingStorage, StakingEvent {
     using SafeMath for uint256;
 
     /********************
@@ -26,7 +27,7 @@ contract Staking is Storage, Event {
         );
 
         require(
-            ERC20Token(_tokenAddress).transferFrom(
+            IErc20Token(_tokenAddress).transferFrom(
                 msg.sender,
                 address(this),
                 amount
@@ -62,7 +63,7 @@ contract Staking is Storage, Event {
         );
 
         require(
-            ERC20Token(_tokenAddress).transfer(
+            IErc20Token(_tokenAddress).transfer(
                 msg.sender,
                 amount
             ),
@@ -91,7 +92,7 @@ contract Staking is Storage, Event {
         );
 
         require(
-            ERC20Token(_tokenAddress).transfer(
+            IErc20Token(_tokenAddress).transfer(
                 msg.sender,
                 amount
             ),
@@ -127,6 +128,7 @@ contract Staking is Storage, Event {
             "Contract has been already initialized"
         );
 
+        if (bytes(name).length == 0) setContractName('Swipe Staking');
         _owner = owner;
         _tokenAddress = tokenAddress;
         _rewardProvider = rewardProvider;
@@ -260,7 +262,7 @@ contract Staking is Storage, Event {
         );
 
         require(
-            ERC20Token(_tokenAddress).transferFrom(
+            IErc20Token(_tokenAddress).transferFrom(
                 msg.sender,
                 address(this),
                 amount
@@ -293,7 +295,7 @@ contract Staking is Storage, Event {
         );
 
         require(
-            ERC20Token(_tokenAddress).transfer(
+            IErc20Token(_tokenAddress).transfer(
                 msg.sender,
                 amount
             ),

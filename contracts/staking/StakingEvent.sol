@@ -1,8 +1,8 @@
 pragma solidity ^0.5.0;
 
-/// @title EventV2 Interface
+/// @title Staking Event Contract
 /// @author growlot (@growlot)
-interface EventV2 {
+contract StakingEvent {
 
     event Initialize(
         address indexed owner,
@@ -11,7 +11,7 @@ interface EventV2 {
         uint256 minimumStakeAmount,
         uint256 rewardCycle,
         uint256 rewardAmount,
-        uint256 _rewardCycleTimestamp
+        uint256 rewardCycleTimestamp
     );
 
     event Stake(
@@ -71,10 +71,5 @@ interface EventV2 {
         address indexed toAddress,
         uint256 indexed amount,
         uint256 indexed nonce
-    );
-
-    event UpcomingEvent(
-        uint256 indexed oldValue,
-        uint256 indexed newValue
     );
 }

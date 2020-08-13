@@ -8,7 +8,7 @@ use(solidity)
 const getCalldata = require('./helpers/getCalldata')
 
 const LOCALSXPTOKEN = require("../build/LocalSXPToken");
-const REGISTRY = require('../build/Registry')
+const REGISTRY = require('../build/SwipeRegistry')
 const STAKING = require('../build/Staking')
 const STAKINGV2 = require('../build/StakingV2')
 
@@ -20,8 +20,21 @@ describe('Tests', () => {
 
     beforeEach(async () => {
         localSxpToken = await deployContract(tokenHolder, LOCALSXPTOKEN, [])
-        registry = await deployContract(walletOwner, REGISTRY, [])
+        registry = await deployContract(walletOwner, REGISTRY, ['Swipe Staking Proxy'])
         staking = await deployContract(walletOwner, STAKING, [])
+    })
+
+    describe('Brand', () => {
+        it('Get registry contract name', async () => {
+            expect(await registry.name()).to.eq('Swipe Staking Proxy')
+        })
+
+        it('Get staking contract name', async () => {
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletOwner.address, localSxpToken.address, walletRewardProvider.address])
+            await registry.setImplementationAndCall(staking.address, calldata)
+            const implementation = new ethers.Contract(registry.address, STAKING.interface, walletOwner)
+            expect(await implementation.name()).to.be.equal('Swipe Staking Proxy')
+        })
     })
 
     describe('Settings', () => {
@@ -370,7 +383,6 @@ describe('Tests', () => {
 
         it('Storage with new updates after upgrade', async () => {
             const implementationOld = new ethers.Contract(registry.address, STAKING.interface, walletOwner)
-            expect(await implementationOld.name()).to.be.equal('Swipe Staking')
             expect(await implementationOld._owner()).to.be.equal(walletOwner.address)
             expect(await implementationOld._tokenAddress()).to.be.equal(localSxpToken.address)
 
@@ -378,7 +390,6 @@ describe('Tests', () => {
             expect(await registry.getImplementation()).to.be.equal(stakingV2.address)
 
             const implementation = new ethers.Contract(registry.address, STAKINGV2.interface, walletOwner)
-            expect(await implementation.name()).to.be.equal('Swipe Staking V2')
             expect(await implementation._owner()).to.be.equal(walletOwner.address)
             expect(await implementation._tokenAddress()).to.be.equal(localSxpToken.address)
 
