@@ -18,7 +18,7 @@ contract VotingTimelock is VotingTimelockStorage, VotingTimelockEvent {
             "Contract has been already initialized"
         );
         require(
-            _minimumDelay =< delay && delay <= _maximumDelay,
+            _minimumDelay <= delay && delay <= _maximumDelay,
             "Invalid delay"
         );
 
@@ -42,7 +42,7 @@ contract VotingTimelock is VotingTimelockStorage, VotingTimelockEvent {
         );
 
         require(
-            _minimumDelay =< delay && delay <= _maximumDelay,
+            _minimumDelay <= delay && delay <= _maximumDelay,
             "Invalid delay"
         );
 
@@ -96,8 +96,8 @@ contract VotingTimelock is VotingTimelockStorage, VotingTimelockEvent {
     function queueTransaction(
         address target,
         uint256 value,
-        string memory signature,
-        bytes memory data,
+        string calldata signature,
+        bytes calldata data,
         uint32 eta
     ) external returns (bytes32) {
         require(
@@ -128,12 +128,12 @@ contract VotingTimelock is VotingTimelockStorage, VotingTimelockEvent {
     function cancelTransaction(
         address target,
         uint256 value,
-        string memory signature,
-        bytes memory data,
+        string calldata signature,
+        bytes calldata data,
         uint256 eta
     ) external {
         require(
-            msg.sender == _admin,
+            msg.sender == _guardian,
             "Only the guardian can cancel transaction"
         );
 
@@ -153,12 +153,12 @@ contract VotingTimelock is VotingTimelockStorage, VotingTimelockEvent {
     function executeTransaction(
         address target,
         uint256 value,
-        string memory signature,
-        bytes memory data,
+        string calldata signature,
+        bytes calldata data,
         uint256 eta
     ) external payable returns (bytes memory) {
         require(
-            msg.sender == _admin,
+            msg.sender == _guardian,
             "Only the guardian can execute transaction"
         );
 
