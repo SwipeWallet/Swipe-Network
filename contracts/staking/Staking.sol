@@ -1,13 +1,14 @@
 pragma solidity ^0.5.0;
 
 import "./SafeMath.sol";
-import "./ERC20Token.sol";
-import "./Storage.sol";
-import "./Event.sol";
+import "../IErc20Token.sol";
+import "../NamedContract.sol";
+import "./StakingStorage.sol";
+import "./StakingEvent.sol";
 
 /// @title Staking Contract
 /// @author growlot (@growlot)
-contract Staking is Storage, Event {
+contract Staking is NamedContract, StakingStorage, StakingEvent {
     using SafeMath for uint256;
 
     /********************
@@ -26,7 +27,7 @@ contract Staking is Storage, Event {
         );
 
         require(
-            ERC20Token(_tokenAddress).transferFrom(
+            IErc20Token(_tokenAddress).transferFrom(
                 msg.sender,
                 address(this),
                 amount
@@ -62,7 +63,7 @@ contract Staking is Storage, Event {
         );
 
         require(
-            ERC20Token(_tokenAddress).transfer(
+            IErc20Token(_tokenAddress).transfer(
                 msg.sender,
                 amount
             ),
@@ -91,7 +92,7 @@ contract Staking is Storage, Event {
         );
 
         require(
-            ERC20Token(_tokenAddress).transfer(
+            IErc20Token(_tokenAddress).transfer(
                 msg.sender,
                 amount
             ),
@@ -114,11 +115,12 @@ contract Staking is Storage, Event {
     /**
      * @notice Initializes contract.
      *
+     * @param guardian Guardian address
      * @param tokenAddress SXP token address
      * @param rewardProvider The reward provider address
      */
     function initialize(
-        address owner,
+        address guardian,
         address tokenAddress,
         address rewardProvider
     ) external {
@@ -127,7 +129,8 @@ contract Staking is Storage, Event {
             "Contract has been already initialized"
         );
 
-        _owner = owner;
+        if (bytes(name).length == 0) setContractName('Swipe Staking');
+        _guardian = guardian;
         _tokenAddress = tokenAddress;
         _rewardProvider = rewardProvider;
         _minimumStakeAmount = 1000 * (10**18);
@@ -137,7 +140,7 @@ contract Staking is Storage, Event {
         _initialized = true;
 
         emit Initialize(
-            _owner,
+            _guardian,
             _tokenAddress,
             _rewardProvider,
             _minimumStakeAmount,
@@ -148,37 +151,37 @@ contract Staking is Storage, Event {
     }
 
     /**
-     * @notice Authorizes the transfer of ownership from _owner to the provided address.
-     * NOTE: No transfer will occur unless authorizedAddress calls assumeOwnership( ).
+     * @notice Authorizes the transfer of guardianship from guardian to the provided address.
+     * NOTE: No transfer will occur unless authorizedAddress calls assumeGuardianship( ).
      * This authorization may be removed by another call to this function authorizing
      * the null address.
      *
-     * @param authorizedAddress The address authorized to become the new owner.
+     * @param authorizedAddress The address authorized to become the new guardian.
      */
-    function authorizeOwnershipTransfer(address authorizedAddress) external {
+    function authorizeGuardianshipTransfer(address authorizedAddress) external {
         require(
-            msg.sender == _owner,
-            "Only the owner can authorize a new address to become owner"
+            msg.sender == _guardian,
+            "Only the guardian can authorize a new address to become guardian"
         );
 
-        _authorizedNewOwner = authorizedAddress;
+        _authorizedNewGuardian = authorizedAddress;
 
-        emit OwnershipTransferAuthorization(_authorizedNewOwner);
+        emit GuardianshipTransferAuthorization(_authorizedNewGuardian);
     }
 
     /**
-     * @notice Transfers ownership of this contract to the _authorizedNewOwner.
+     * @notice Transfers guardianship of this contract to the _authorizedNewGuardian.
      */
-    function assumeOwnership() external {
+    function assumeGuardianship() external {
         require(
-            msg.sender == _authorizedNewOwner,
-            "Only the authorized new owner can accept ownership"
+            msg.sender == _authorizedNewGuardian,
+            "Only the authorized new guardian can accept guardianship"
         );
-        address oldValue = _owner;
-        _owner = _authorizedNewOwner;
-        _authorizedNewOwner = address(0);
+        address oldValue = _guardian;
+        _guardian = _authorizedNewGuardian;
+        _authorizedNewGuardian = address(0);
 
-        emit OwnerUpdate(oldValue, _owner);
+        emit GuardianUpdate(oldValue, _guardian);
     }
 
     /**
@@ -188,8 +191,8 @@ contract Staking is Storage, Event {
      */
     function setMinimumStakeAmount(uint256 newMinimumStakeAmount) external {
         require(
-            msg.sender == _owner || msg.sender == _rewardProvider,
-            "Only the owner or reward provider can set the minimum stake amount"
+            msg.sender == _guardian || msg.sender == _rewardProvider,
+            "Only the guardian or reward provider can set the minimum stake amount"
         );
 
         require(
@@ -210,8 +213,8 @@ contract Staking is Storage, Event {
      */
     function setRewardProvider(address newRewardProvider) external {
         require(
-            msg.sender == _owner,
-            "Only the owner can set the reward provider address"
+            msg.sender == _guardian,
+            "Only the guardian can set the reward provider address"
         );
 
         address oldValue = _rewardProvider;
@@ -260,7 +263,7 @@ contract Staking is Storage, Event {
         );
 
         require(
-            ERC20Token(_tokenAddress).transferFrom(
+            IErc20Token(_tokenAddress).transferFrom(
                 msg.sender,
                 address(this),
                 amount
@@ -293,7 +296,7 @@ contract Staking is Storage, Event {
         );
 
         require(
-            ERC20Token(_tokenAddress).transfer(
+            IErc20Token(_tokenAddress).transfer(
                 msg.sender,
                 amount
             ),
