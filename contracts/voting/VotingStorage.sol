@@ -1,6 +1,10 @@
 pragma solidity ^0.5.16;
 
+import "./IVotingTimelock.sol";
+import "../staking/IStaking.sol";
+
 /// @title Voting Storage Contract
+/// @author blockplus (@blockplus), brightdev33 (@brightdev33)
 contract VotingStorage {
 
     /// @notice Initialized flag - indicates that initialization was made once
@@ -10,13 +14,15 @@ contract VotingStorage {
     string public constant name = "Swipe Voting";
 
     /// @notice The address of the Swipe Timelock
-    TimelockInterface public _timelock;
+    IVotingTimelock public _timelock;
 
     /// @notice The address of the Swipe voting token
-    StakingInterface public _staking;
+    IStaking public _staking;
 
     /// @notice The address of the Voting Guardian
     address public _guardian;
+    
+    address public _authorizedNewGuardian;
 
     /// @notice The number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed
     uint256 public _quorumVotes;
@@ -49,7 +55,7 @@ contract VotingStorage {
         /// @notice the ordered list of target addresses for calls to be made
         address[] targets;
 
-        /// @notice The ordered list of values (__acceptAdmini.e. msg.value) to be passed to the calls to be made
+        /// @notice The ordered list of values (assumeGuardianship i.e. msg.value) to be passed to the calls to be made
         uint256[] values;
 
         /// @notice The ordered list of function signatures to be called
@@ -76,6 +82,10 @@ contract VotingStorage {
         /// @notice Flag marking whether the proposal has been executed
         bool executed;
 
+        /// @notice The entire set of voters
+        uint256 voterCount;
+        mapping (uint256 => address) voters;
+
         /// @notice Receipts of ballots for the entire set of voters
         mapping (address => Receipt) receipts;
     }
@@ -88,7 +98,7 @@ contract VotingStorage {
         /// @notice Whether or not the voter supports the proposal
         bool support;
 
-        /// @notice The number of votes the voter had, which were cast
+        /// @notice The number of votes the voter had, which were cast, or current number
         uint256 votes;
     }
 
@@ -111,23 +121,9 @@ contract VotingStorage {
     mapping (address => uint256) public _latestProposalIds;
 
     /// @notice The EIP-712 typehash for the contract's domain
-    bytes32 public constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract)");
+    bytes32 public constant _domainTypeHash = keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract)");
 
     /// @notice The EIP-712 typehash for the ballot struct used by the contract
-    bytes32 public constant BALLOT_TYPEHASH = keccak256("Ballot(uint256 proposalId,bool support)");
+    bytes32 public constant _ballotTypeHash = keccak256("Ballot(uint256 proposalId,bool support)");
 
-}
-
-interface TimelockInterface {
-    function delay() external view returns (uint256);
-    function GRACE_PERIOD() external view returns (uint256);
-    function acceptAdmin() external;
-    function queuedTransactions(bytes32 hash) external view returns (bool);
-    function queueTransaction(address target, uint256 value, string calldata signature, bytes calldata data, uint256 eta) external returns (bytes32);
-    function cancelTransaction(address target, uint256 value, string calldata signature, bytes calldata data, uint256 eta) external;
-    function executeTransaction(address target, uint256 value, string calldata signature, bytes calldata data, uint256 eta) external payable returns (bytes memory);
-}
-
-interface StakingInterface {
-    function getStakedMap(address account) external view returns (uint256);
 }
