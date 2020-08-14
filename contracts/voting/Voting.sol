@@ -33,7 +33,7 @@ contract Voting is VotingStorage, VotingEvent {
     /// @notice Set Swipe guardian 
     function setGuardian(address guardian) public {
         require(
-            msg.sender == address(this),
+            msg.sender == _guardian,
             "Swipe Voting::setting: setGuardian call must come from Swipe Voting."
         );
 
@@ -121,10 +121,10 @@ contract Voting is VotingStorage, VotingEvent {
         bytes[] memory calldatas,
         string memory description
     ) public returns (uint256) {
-        require(
+        /* require(
             _staking.getStakedMap(msg.sender) > _proposalThreshold,
             "Swipe Voting::propose: proposer votes below proposal threshold"
-        );
+        );*/
 
         require(
             targets.length == values.length && targets.length == signatures.length && targets.length == calldatas.length,
