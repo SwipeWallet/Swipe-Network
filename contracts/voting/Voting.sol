@@ -3,9 +3,12 @@ pragma experimental ABIEncoderV2;
 
 import "../SafeMath.sol";
 import "./VotingStorage.sol";
+import "./IVotingTimelock.sol";
+import "../staking/IStaking.sol";
 import "./VotingEvent.sol";
 
 /// @title Voting Contract
+/// @author blockplus (@blockplus), brightdev33 (@brightdev33)
 contract Voting is VotingStorage, VotingEvent {
     using SafeMath for uint256;
 
@@ -13,9 +16,14 @@ contract Voting is VotingStorage, VotingEvent {
         address timelockAddress,
         address stakingAddress,
         address guardian
-    ) public {
-        _timelock = TimelockInterface(timelockAddress);
-        _staking = StakingInterface(stakingAddress);
+    ) external {
+        require(
+            !_initialized,
+            "Contract has been already initialized"
+        );
+
+        _timelock = IVotingTimelock(timelockAddress);
+        _staking = IStaking(stakingAddress);
         _guardian = guardian;
 
         _initialized = true;
@@ -23,23 +31,44 @@ contract Voting is VotingStorage, VotingEvent {
         emit Initialize(
             timelockAddress,
             stakingAddress,
-            guardian
+            _guardian
         );
     }
 
-    /// @notice The name of this contract
-    string public constant name = "Swipe Voting";
-
-    /// @notice Set Swipe guardian 
-    function setGuardian(address guardian) public {
+    /**
+     * @notice Authorizes the transfer of guardianship from guardian to the provided address.
+     * NOTE: No transfer will occur unless authorizedAddress calls assumeGuardianship( ).
+     * This authorization may be removed by another call to this function authorizing
+     * the null address.
+     *
+     * @param authorizedAddress The address authorized to become the new guardian.
+     */
+    function authorizeGuardianshipTransfer(address authorizedAddress) external {
         require(
-            msg.sender == address(this),
-            "Swipe Voting::setting: setGuardian call must come from Swipe Voting."
+            msg.sender == _guardian,
+            "Only the guardian can authorize a new address to become guardian"
         );
 
-        _guardian = guardian;
+        _authorizedNewGuardian = authorizedAddress;
 
-        emit NewGuardian(
+        emit GuardianshipTransferAuthorization(_authorizedNewGuardian);
+    }
+
+    /**
+     * @notice Transfers guardianship of this contract to the _authorizedNewGuardian.
+     */
+    function assumeGuardianship() external {
+        require(
+            msg.sender == _authorizedNewGuardian,
+            "Only the authorized new guardian can accept guardianship"
+        );
+
+        address oldValue = _guardian;
+        _guardian = _authorizedNewGuardian;
+        _authorizedNewGuardian = address(0);
+
+        emit GuardianUpdate(
+            oldValue,
             _guardian
         );
     }
@@ -48,12 +77,14 @@ contract Voting is VotingStorage, VotingEvent {
     function setQuorumVotes(uint256 quorumVotes) external {
         require(
             msg.sender == _guardian,
-            "Swipe Voting::setting: quorumVotes can be set by guardian"
+            "Only the guardian can set quorum votes"
         );
 
+        uint256 oldValue = _quorumVotes;
         _quorumVotes = quorumVotes; 
 
-        emit NewQuorumVotes(
+        emit QuorumVotesUpdate(
+            oldValue,
             _quorumVotes
         );
     }
@@ -62,12 +93,14 @@ contract Voting is VotingStorage, VotingEvent {
     function setProposalThreshold(uint256 proposalThreshold) external {
         require(
             msg.sender == _guardian,
-            "Swipe Voting::setting: proposalThreshold can be set by guardian"
+            "Only the guardian can set proposal threshold"
         );
-        
-        _proposalThreshold = proposalThreshold;
 
-        emit NewProposalThreshold(
+        uint256 oldValue = _proposalThreshold;
+        _proposalThreshold = proposalThreshold; 
+
+        emit ProposalThresholdUpdate(
+            oldValue,
             _proposalThreshold
         );
     }
@@ -76,12 +109,14 @@ contract Voting is VotingStorage, VotingEvent {
     function setProposalMaxOperations(uint256 proposalMaxOperations) external {
         require(
             msg.sender == _guardian,
-            "Swipe Voting::setting: proposalMaxOperations can be set by guardian"
+            "Only the guardian can set proposal max operations"
         );
-        
-        _proposalMaxOperations = proposalMaxOperations;
 
-        emit NewProposalMaxOperations(
+        uint256 oldValue = _proposalMaxOperations;
+        _proposalMaxOperations = proposalMaxOperations; 
+
+        emit ProposalMaxOperationsUpdate(
+            oldValue,
             _proposalMaxOperations
         );
     }
@@ -90,12 +125,14 @@ contract Voting is VotingStorage, VotingEvent {
     function setVotingDelay(uint256 votingDelay) external {
         require(
             msg.sender == _guardian,
-            "Swipe Voting::setting: votingDelay can be set by guardian"
+            "Only the guardian can set voting delay"
         );
-        
-        _votingDelay = votingDelay;
 
-        emit NewVotingDelay(
+        uint256 oldValue = _votingDelay;
+        _votingDelay = votingDelay; 
+
+        emit VotingDelayUpdate(
+            oldValue,
             _votingDelay
         );
     }
@@ -104,12 +141,14 @@ contract Voting is VotingStorage, VotingEvent {
     function setVotingPeriod(uint256 votingPeriod) external {
         require(
             msg.sender == _guardian,
-            "Swipe Voting::setting: votingPeriod can be set by guardian"
+            "Only the guardian can set voting period"
         );
-        
-        _votingPeriod = votingPeriod;
 
-        emit NewVotingPeriod(
+        uint256 oldValue = _votingPeriod;
+        _votingPeriod = votingPeriod; 
+
+        emit VotingPeriodUpdate(
+            oldValue,
             _votingPeriod
         );
     }
@@ -122,36 +161,32 @@ contract Voting is VotingStorage, VotingEvent {
         string memory description
     ) public returns (uint256) {
         require(
-            _staking.getStakedMap(msg.sender) > _proposalThreshold,
-            "Swipe Voting::propose: proposer votes below proposal threshold"
+            _staking._stakedMap(msg.sender) > _proposalThreshold,
+            "The proposer votes below proposal threshold"
         );
 
         require(
             targets.length == values.length && targets.length == signatures.length && targets.length == calldatas.length,
-            "Swipe Voting::propose: proposal function information arity mismatch"
-        );
-
-        require(
-            targets.length != 0,
-            "Swipe Voting::propose: must provide actions"
+            "Operation parameters mismatch"
         );
 
         require(
             targets.length <= _proposalMaxOperations,
-            "Swipe Voting::propose: too many actions"
+            "Too many operations"
         );
 
         uint256 latestProposalId = _latestProposalIds[msg.sender];
         if (latestProposalId != 0) {
             ProposalState proposersLatestProposalState = state(latestProposalId);
+            
             require(
                 proposersLatestProposalState != ProposalState.Active,
-                "Swipe Voting::propose: one live proposal per proposer, found an already active proposal"
+                "One live proposal per proposer, found an already active proposal"
             );
             
             require(
                 proposersLatestProposalState != ProposalState.Pending,
-                "Swipe Voting::propose: one live proposal per proposer, found an already pending proposal"
+                "One live proposal per proposer, found an already pending proposal"
             );
         }
 
@@ -172,13 +207,14 @@ contract Voting is VotingStorage, VotingEvent {
             upVotes: 0,
             downVotes: 0,
             canceled: false,
-            executed: false
+            executed: false,
+            voterCount: 0
         });
 
         _proposals[newProposal.id] = newProposal;
         _latestProposalIds[newProposal.proposer] = newProposal.id;
 
-        emit CreateProposal(
+        emit ProposalCreation(
             newProposal.id,
             msg.sender,
             targets,
@@ -193,25 +229,26 @@ contract Voting is VotingStorage, VotingEvent {
         return newProposal.id;
     }
 
-    function queue(
-        uint256 proposalId
-    ) public {
+    function queue(uint256 proposalId) external {
         require(
             state(proposalId) == ProposalState.Succeeded,
-            "Swipe Voting::queue: proposal can only be queued if it is succeeded"
+            "Proposal can only be queued if it is succeeded"
         );
 
         Proposal storage proposal = _proposals[proposalId];
-        uint256 eta = block.timestamp.add(_timelock.delay());
-        for (uint256 i = 0; i < proposal.targets.length; i++) {
-            queueOrRevert(proposal.targets[i], proposal.values[i], proposal.signatures[i], proposal.calldatas[i], eta);
+        uint256 eta = block.timestamp.add(_timelock._delay());
+        for (uint i = 0; i < proposal.targets.length; i++) {
+            queueOrRevert(
+                proposal.targets[i],
+                proposal.values[i],
+                proposal.signatures[i],
+                proposal.calldatas[i],
+                eta
+            );
         }
         proposal.eta = eta;
 
-        emit QueueProposal(
-            proposalId,
-            eta
-        );
+        emit ProposalQueue(proposalId, eta);
     }
 
     function queueOrRevert(
@@ -222,19 +259,23 @@ contract Voting is VotingStorage, VotingEvent {
         uint256 eta
     ) internal {
         require(
-            !_timelock.queuedTransactions(keccak256(abi.encode(target, value, signature, data, eta))),
-            "Swipe Voting::queueOrRevert: proposal action already queued at eta"
+            !_timelock._queuedTransactions(keccak256(abi.encode(target, value, signature, data, eta))),
+            "The proposal operation already queued at eta"
         );
 
-        _timelock.queueTransaction(target, value, signature, data, eta);
+        _timelock.queueTransaction(
+            target,
+            value,
+            signature,
+            data,
+            eta
+        );
     }
 
-    function execute(
-        uint256 proposalId
-    ) public payable {
+    function execute(uint256 proposalId) external payable {
         require(
             state(proposalId) == ProposalState.Queued,
-            "Swipe Voting::execute: proposal can only be executed if it is queued"
+            "Proposal can only be executed if it is queued"
         );
 
         Proposal storage proposal = _proposals[proposalId];
@@ -242,31 +283,33 @@ contract Voting is VotingStorage, VotingEvent {
         for (uint256 i = 0; i < proposal.targets.length; i++) {
             _timelock.executeTransaction.value(
                 proposal.values[i]
-            )(proposal.targets[i], proposal.values[i], proposal.signatures[i], proposal.calldatas[i], proposal.eta);
+            )(
+                proposal.targets[i],
+                proposal.values[i],
+                proposal.signatures[i],
+                proposal.calldatas[i],
+                proposal.eta
+            );
         }
 
-        emit ExecuteProposal(proposalId);
+        emit ProposalExecution(proposalId);
     }
 
-    function cancel(
-        uint256 proposalId
-    ) public {
-        ProposalState state = state(proposalId);
-
+    function cancel(uint256 proposalId) external {
         require(
-            state != ProposalState.Executed,
-            "Swipe Voting::cancel: cannot cancel executed proposal"
+            state(proposalId) != ProposalState.Executed,
+            "Cannot cancel executed proposal"
         );
 
         Proposal storage proposal = _proposals[proposalId];
 
         require(
-            msg.sender == _guardian || _staking.getStakedMap(proposal.proposer) < _proposalThreshold,
-            "Swipe Voting::cancel: proposer above threshold"
+            msg.sender == _guardian || _staking._stakedMap(proposal.proposer) < _proposalThreshold,
+            "The proposer does not meet threshold"
         );
 
         proposal.canceled = true;
-        for (uint256 i = 0; i < proposal.targets.length; i++) {
+        for (uint i = 0; i < proposal.targets.length; i++) {
             _timelock.cancelTransaction(
                 proposal.targets[i],
                 proposal.values[i],
@@ -276,31 +319,45 @@ contract Voting is VotingStorage, VotingEvent {
             );
         }
 
-        emit CancelProposal(
-            proposalId
+        emit ProposalCancel(proposalId);
+    }
+
+    function getOperations(uint256 proposalId) external view returns (address[] memory targets, uint256[] memory values, string[] memory signatures, bytes[] memory calldatas) {
+        Proposal storage proposal = _proposals[proposalId];
+        
+        return (
+            proposal.targets,
+            proposal.values,
+            proposal.signatures,
+            proposal.calldatas
         );
     }
 
-    function getActions(
-        uint256 proposalId
-    ) public view returns (address[] memory targets, uint256[] memory values, string[] memory signatures, bytes[] memory calldatas) {
-        Proposal storage p = _proposals[proposalId];
-        return (p.targets, p.values, p.signatures, p.calldatas);
+    function getReceipt(uint256 proposalId, address voter) external view returns (Receipt memory) {
+        Receipt memory receipt = _proposals[proposalId].receipts[voter];
+        receipt.votes = _staking._stakedMap(voter);
+        
+        return receipt;
     }
 
-    function getReceipt(
-        uint256 proposalId,
-        address voter
-    ) public view returns (Receipt memory) {
-        return _proposals[proposalId].receipts[voter];
+    function getVotes(uint256 proposalId) public view returns (uint256 upVotes, uint256 downVotes) {
+        Proposal storage proposal = _proposals[proposalId];
+
+        for (uint i = 0; i < proposal.voterCount; i++) {
+            address voter = proposal.voters[i];
+            Receipt storage receipt = proposal.receipts[voter];
+            if (receipt.support) {
+                upVotes = upVotes.add(_staking._stakedMap(voter));
+            } else {
+                downVotes = downVotes.add(_staking._stakedMap(voter));
+            }
+        }
     }
 
-    function state(
-        uint256 proposalId
-    ) public view returns (ProposalState) {
+    function state(uint256 proposalId) public view returns (ProposalState) {
         require(
             _proposalCount >= proposalId && proposalId > 0,
-            "Swipe Voting::state: invalid proposal id"
+            "Invalid proposal id"
         );
 
         Proposal storage proposal = _proposals[proposalId];
@@ -310,23 +367,23 @@ contract Voting is VotingStorage, VotingEvent {
             return ProposalState.Pending;
         } else if (block.number <= proposal.endBlock) {
             return ProposalState.Active;
-        } else if (proposal.upVotes <= proposal.downVotes || proposal.upVotes < _quorumVotes) {
-            return ProposalState.Defeated;
-        } else if (proposal.eta == 0) {
-            return ProposalState.Succeeded;
-        } else if (proposal.executed) {
-            return ProposalState.Executed;
-        } else if (block.timestamp >= proposal.eta.add(_timelock.GRACE_PERIOD())) {
-            return ProposalState.Expired;
         } else {
-            return ProposalState.Queued;
+            (uint256 upVotes, uint256 downVotes) = getVotes(proposalId);
+            if (upVotes <= downVotes || upVotes < _quorumVotes) {
+                return ProposalState.Defeated;
+            } else if (proposal.eta == 0) {
+                return ProposalState.Succeeded;
+            } else if (proposal.executed) {
+                return ProposalState.Executed;
+            } else if (block.timestamp >= proposal.eta.add(_timelock._gracePeriod())) {
+                return ProposalState.Expired;
+            } else {
+                return ProposalState.Queued;
+            }
         }
     }
 
-    function castVote(
-        uint256 proposalId,
-        bool support
-    ) public {
+    function castVote(uint256 proposalId, bool support) external {
         return doCastVote(msg.sender, proposalId, support);
     }
 
@@ -336,18 +393,22 @@ contract Voting is VotingStorage, VotingEvent {
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) public {
-        bytes32 domainSeparator = keccak256(abi.encode(DOMAIN_TYPEHASH, keccak256(bytes(name)), getChainId(), address(this)));
-        bytes32 structHash = keccak256(abi.encode(BALLOT_TYPEHASH, proposalId, support));
+    ) external {
+        bytes32 domainSeparator = keccak256(abi.encode(_domainTypeHash, keccak256(bytes(name)), getChainId(), address(this)));
+        bytes32 structHash = keccak256(abi.encode(_ballotTypeHash, proposalId, support));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
         address signatory = ecrecover(digest, v, r, s);
         
         require(
             signatory != address(0),
-            "Swipe Voting::castVoteBySig: invalid signature"
+            "Invalid signature"
         );
 
-        return doCastVote(signatory, proposalId, support);
+        return doCastVote(
+            signatory,
+            proposalId,
+            support
+        );
     }
 
     function doCastVote(
@@ -357,7 +418,7 @@ contract Voting is VotingStorage, VotingEvent {
     ) internal {
         require(
             state(proposalId) == ProposalState.Active,
-            "Swipe Voting::doCastVote: voting is closed"
+            "Voting is closed"
         );
 
         Proposal storage proposal = _proposals[proposalId];
@@ -365,16 +426,10 @@ contract Voting is VotingStorage, VotingEvent {
         
         require(
             receipt.hasVoted == false,
-            "Swipe Voting::doCastVote: voter already voted"
+            "The voter already voted"
         );
         
-        uint256 votes = _staking.getStakedMap(voter);
-
-        if (support) {
-            proposal.upVotes = proposal.upVotes.add(votes);
-        } else {
-            proposal.downVotes = proposal.downVotes.add(votes);
-        }
+        uint256 votes = _staking._stakedMap(voter);
 
         receipt.hasVoted = true;
         receipt.support = support;
@@ -388,52 +443,48 @@ contract Voting is VotingStorage, VotingEvent {
         );
     }
 
-    function acceptAdmin() public {
+    function assumeTimelockGuardianship() external {
         require(
             msg.sender == _guardian,
-            "Swipe Voting::acceptAdmin: sender must be Swipe guardian"
+            "Only the guardian can assume timelock guardianship"
         );
 
-        _timelock.acceptAdmin();
+        _timelock.assumeGuardianship();
     }
 
-    function abdicate() public {
+    function queueAuthorizeGuardianshipTransfer(address authorizedAddress, uint256 eta) external {
         require(
             msg.sender == _guardian,
-            "Swipe Voting::abdicate: sender must be Swipe guardian"
+            "Only the guardian can queue timelock guardianship transfer transaction"
         );
 
-        _guardian = address(0);
+        _timelock.queueTransaction(
+            address(_timelock),
+            0,
+            "authorizeGuardianshipTransfer(address)",
+            abi.encode(authorizedAddress),
+            eta
+        );
     }
 
-    function queueSetTimelockPendingAdmin(
-        address newPendingAdmin,
-        uint256 eta
-    ) public {
+    function executeAuthorizeGuardianshipTransfer(address authorizedAddress, uint256 eta) external {
         require(
             msg.sender == _guardian,
-            "Swipe Voting::queueSetTimelockPendingAdmin: sender must be Swipe guardian"
+            "Only the guardian can execute timelock guardianship transfer transaction"
         );
 
-        _timelock.queueTransaction(address(_timelock), 0, "setPendingAdmin(address)", abi.encode(newPendingAdmin), eta);
-    }
-
-    function executeSetTimelockPendingAdmin(
-        address newPendingAdmin,
-        uint256 eta
-    ) public {
-        require(
-            msg.sender == _guardian,
-            "Swipe Voting::executeSetTimelockPendingAdmin: sender must be Swipe guardian"
+        _timelock.executeTransaction(
+            address(_timelock),
+            0,
+            "authorizeGuardianshipTransfer(address)",
+            abi.encode(authorizedAddress),
+            eta
         );
-        _timelock.executeTransaction(address(_timelock), 0, "setPendingAdmin(address)", abi.encode(newPendingAdmin), eta);
     }
 
-    function getChainId() internal pure returns (uint256) {
-        uint256 chainId;
+    function getChainId() internal pure returns (uint256 chainId) {
         assembly {
             chainId := chainid()
         }
-        return chainId;
     }
 }

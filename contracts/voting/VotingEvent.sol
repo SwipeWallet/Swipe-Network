@@ -2,6 +2,7 @@ pragma solidity ^0.5.16;
 pragma experimental ABIEncoderV2;
 
 /// @title Voting Event Interface
+/// @author blockplus (@blockplus), brightdev33 (@brightdev33)
 interface VotingEvent {
     /// @notice An event emitted when initialize
     event Initialize(
@@ -10,38 +11,41 @@ interface VotingEvent {
         address indexed guardian
     );
 
-    /// @notice An event emitted when set guardian
-    event NewGuardian(
-        address indexed guardian
+    event GuardianshipTransferAuthorization(
+        address indexed authorizedAddress
     );
 
-    /// @notice An event emitted when set quorumVotes
-    event NewQuorumVotes(
-        uint256 indexed quorumVotes
+    event GuardianUpdate(
+        address indexed oldValue,
+        address indexed newValue
     );
 
-    /// @notice An event emitted when set proposalThreshold
-    event NewProposalThreshold(
-        uint256 indexed proposalThreshold
+    event QuorumVotesUpdate(
+        uint256 indexed oldValue,
+        uint256 indexed newValue
     );
 
-    /// @notice An event emitted when set proposalMaxOperations
-    event NewProposalMaxOperations(
-        uint256 indexed proposalMaxOperations
+    event ProposalThresholdUpdate(
+        uint256 indexed oldValue,
+        uint256 indexed newValue
     );
 
-    /// @notice An event emitted when set votingDelay
-    event NewVotingDelay(
-        uint256 indexed votingDelay
+    event ProposalMaxOperationsUpdate(
+        uint256 indexed oldValue,
+        uint256 indexed newValue
     );
 
-    /// @notice An event emitted when set votingPeriod
-    event NewVotingPeriod(
-        uint256 indexed votingPeriod
+    event VotingDelayUpdate(
+        uint256 indexed oldValue,
+        uint256 indexed newValue
     );
 
-    /// @notice An event emitted when a new proposal is created
-    event CreateProposal(
+    event VotingPeriodUpdate(
+        uint256 indexed oldValue,
+        uint256 indexed newValue
+    );
+
+    event ProposalCreation(
         uint256 indexed id,
         address indexed proposer,
         address[] targets,
@@ -53,7 +57,6 @@ interface VotingEvent {
         string description
     );
 
-    /// @notice An event emitted when a vote has been cast on a proposal
     event Vote(
         address indexed voter,
         uint256 indexed proposalId,
@@ -61,19 +64,16 @@ interface VotingEvent {
         uint256 votes
     );
 
-    /// @notice An event emitted when a proposal has been canceled
-    event CancelProposal(
+    event ProposalCancel(
         uint256 indexed id
     );
 
-    /// @notice An event emitted when a proposal has been queued in the Timelock
-    event QueueProposal(
+    event ProposalQueue(
         uint256 indexed id,
         uint256 indexed eta
     );
 
-    /// @notice An event emitted when a proposal has been executed in the Timelock
-    event ExecuteProposal(
+    event ProposalExecution(
         uint256 indexed id
     );
 }
