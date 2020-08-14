@@ -175,7 +175,7 @@ contract VotingTimelock is VotingTimelockStorage, VotingTimelockEvent {
         );
 
         require(
-            getBlockTimestamp() <= eta.add(GRACE_PERIOD),
+            getBlockTimestamp() <= eta.add(_gracePeriod),
             "The transaction is stale"
         );
 
