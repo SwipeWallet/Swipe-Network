@@ -7,7 +7,7 @@ import "./VotingTimelockEvent.sol";
 /// @title Voting Timelock Contract
 /// @author blockplus (@blockplus), brightdev33 (@brightdev33)
 contract VotingTimelock is VotingTimelockStorage, VotingTimelockEvent {
-    using SafeMath for uint;
+    using SafeMath for uint256;
 
     function initialize(
         address guardian,
