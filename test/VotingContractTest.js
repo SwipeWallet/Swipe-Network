@@ -21,14 +21,15 @@ const {
 describe('Voting Contract', () => {
   let votingContract, newVotingContract, timelockContract, stakingContract
   
-  const [timelock, staking, guardian, account, anotherAccount, newGuardian] = new MockProvider({ total_accounts: 5 }).getWallets();
+  const [timelock, staking, guardian, account, anotherAccount, newGuardian, voter, anotherVoter] = new MockProvider({ total_accounts: 8 }).getWallets();
   const [newTimelock, newStaking] = new MockProvider({ total_accounts: 2 }).getWallets();
 
   let quorumVotes, proposalThreshold, proposalMaxOperations
   let votingDelay, votingPeriod
   
   let trivialProposal, targets, values, signatures, callDatas, proposalBlock, proposalId, anotherProposalId
-  
+  let eta
+
   beforeEach(async() => {
     timelockContract = await deployContract(timelock, TIMELOCK, [])
     stakingContract = await deployContract(staking, STAKING, [])
@@ -40,16 +41,29 @@ describe('Voting Contract', () => {
     proposalMaxOperations = 100
     votingDelay = 12 * 60 * 60    // 12 hours
     votingPeriod = 3 * 24 * 60 * 60 // 3 days
+    eta = 100
 
     await votingContract.initialize(timelock.address, staking.address, guardian.address)
 
   });
 
-  describe('Voting Contract Set Guardian', async() => {
+  describe('Voting Contract Set authorizeGuardianshipTransfer', async() => {
     it ('Set Guardian', async() => {
-      await votingContract.setGuardian(newGuardian.address)
+      await votingContract.authorizeGuardianshipTransfer(newGuardian.address)
 
-      expect (await votingContract._guardian()).to.be.equal(newGuardian.address)
+      expect (await votingContract._authorizedNewGuardian()).to.be.equal(newGuardian.address)
+    })
+
+    it ('Assume TimeLock Guardian', async() => {
+      await expect(votingContract.assumeTimelockGuardianship()).to.be.reverted
+    })
+
+    it ('Queue Authorize Guardian Transfer', async() => {
+      await expect(votingContract.queueAuthorizeGuardianshipTransfer(account.address, eta)).to.be.reverted
+    })
+
+    it ('Execute Authorize Guardian Transfer', async() => {
+      await expect(votingContract.executeAuthorizeGuardianshipTransfer(account.address, eta)).to.be.reverted
     })
   })
 
@@ -151,7 +165,7 @@ describe('Voting Contract', () => {
     })
 
     it ('Check Get Actions', async() => {
-      let dynamicFields = await votingContract.getActions(trivialProposal.id)
+      let dynamicFields = await votingContract.getOperations(trivialProposal.id)
 
       if (dynamicFields.targets.length === targets.length) {
         for (let i = 0; i < targets.length; i ++) {
@@ -210,13 +224,89 @@ describe('Voting Contract', () => {
       signatures = ["getBalanceOf(address)"];
       callDatas = [encodeParameters(['address'], [anotherAccount.address])];
 
-      await newVotingContract.propose(targets, values, signatures, callDatas, "Test for another proposal to Queue")
+      await votingContract.propose(targets, values, signatures, callDatas, "Test for another proposal to Queue")
 
       proposalId = await votingContract._latestProposalIds(account.address)
       anotherProposalId = await votingContract._latestProposalIds(anotherAccount.address)
 
       await expect(proposalId).to.be.equal(anotherProposalId)
     })
+
+    it ('The proposal to execute', async() => {
+      proposalId = await votingContract._latestProposalIds(account.address)
+
+      await expect(votingContract.execute(proposalId)).to.be.reverted
+    })
+
+    it ('The proposal to cancel', async() => {
+      proposalId = await votingContract._latestProposalIds(account.address)
+
+      await expect(votingContract.execute(proposalId)).to.be.reverted
+
+      await expect(votingContract.cancel(proposalId)).to.be.reverted
+    })
+
+    it ('The proposal of state', async() => {
+      await expect(votingContract.execute(proposalId)).to.be.reverted
+
+      await expect(votingContract.state(proposalId)).to.be.reverted
+    })
   })
 
+  describe('Cast Vote', async() => {
+    beforeEach(async() => {
+      targets = [account.address];
+      values = ["150"];
+      signatures = ["getBalanceOf(address)"];
+      callDatas = [encodeParameters(['address'], [account.address])];
+      
+      await votingContract.setProposalMaxOperations(proposalMaxOperations)
+
+      await votingContract.propose(targets, values, signatures, callDatas, "Test for one proposal to Queue")
+      proposalId = await votingContract._latestProposalIds(account.address)
+    })
+
+    it ('To check get receipt with voter', async() => {     
+      await expect(votingContract.getReceipt(proposalId, voter.address)).to.be.reverted
+    })
+
+    it ('To do CastVote with one voter', async() => {
+      await expect(votingContract.getReceipt(proposalId, voter.address)).to.be.reverted
+
+      await expect(votingContract.castVote(proposalId, true)).to.be.reverted
+    })
+
+    it ('To do CastVote one voter to different proposals', async() => {
+      // Create New another proposal
+      targets = [anotherAccount.address];
+      values = ["150"];
+      signatures = ["getBalanceOf(address)"];
+      callDatas = [encodeParameters(['address'], [anotherAccount.address])];
+
+      const result = await votingContract.propose(targets, values, signatures, callDatas, "Test for another proposal to Queue")
+      anotherProposalId = await votingContract._latestProposalIds(anotherAccount.address)
+
+      // Cast Vote to first proposal
+      await expect(votingContract.getReceipt(proposalId, voter.address)).to.be.reverted
+
+      await expect(votingContract.castVote(proposalId, true)).to.be.reverted
+
+      // Cast Vote to second proposal with same voter
+      await expect(votingContract.getReceipt(anotherProposalId, voter.address)).to.be.reverted
+
+      await expect(votingContract.castVote(anotherProposalId, true)).to.be.reverted
+    })
+
+    it ('To do CastVote with different voters to one proposal', async() => {
+      // Cast first Voter to the Proposal
+      await expect(votingContract.getReceipt(proposalId, voter.address)).to.be.reverted
+
+      await expect(votingContract.castVote(proposalId, true)).to.be.reverted
+
+      // Cast second Voter to the Proposal
+      await expect(votingContract.getReceipt(proposalId, anotherVoter.address)).to.be.reverted
+
+      await expect(votingContract.castVote(proposalId, true)).to.be.reverted
+    })
+  })
 });
