@@ -13,7 +13,8 @@ const STAKING = require('../build/Staking')
 const STAKINGV2 = require('../build/StakingV2')
 
 describe('Staking Tests', () => {
-    const [walletOwner, walletNewOwner, walletRewardProvider, walletNewRewardProvider, tokenHolder] = new MockProvider({ total_accounts: 5 }).getWallets()
+    const provider = new MockProvider({ total_accounts: 5 })
+    const [walletOwner, walletNewOwner, walletRewardProvider, walletNewRewardProvider, tokenHolder] = provider.getWallets()
     let localSxpToken
     let registry
     let staking
@@ -190,14 +191,14 @@ describe('Staking Tests', () => {
             const implementation = new ethers.Contract(registry.address, STAKING.interface, tokenHolder)
             const beforeTotalStaked = await implementation._totalStaked()
             expect(beforeTotalStaked).to.be.equal('0')
-            const beforeStaked = await implementation._stakedMap(tokenHolder.address)
+            const beforeStaked = await implementation.getStakedAmount(tokenHolder.address)
             expect(beforeStaked).to.be.equal('0')
             await expect(implementation.stake(amount)).to.emit(implementation, 'Stake').withArgs(tokenHolder.address, amount)
             const afterBalance = await localSxpToken.balanceOf(registry.address)
             expect(afterBalance).to.be.equal(amount)
             const afterTotalStaked = await implementation._totalStaked()
             expect(afterTotalStaked).to.be.equal(amount)
-            const afterStaked = await implementation._stakedMap(tokenHolder.address)
+            const afterStaked = await implementation.getStakedAmount(tokenHolder.address)
             expect(afterStaked).to.be.equal(amount)
         })
 
@@ -232,10 +233,44 @@ describe('Staking Tests', () => {
             expect(afterBalance).to.be.equal(remainAmount)
             const afterTotalStaked = await implementation._totalStaked()
             expect(afterTotalStaked).to.be.equal(remainAmount)
-            const afterStaked = await implementation._stakedMap(tokenHolder.address)
+            const afterStaked = await implementation.getStakedAmount(tokenHolder.address)
             expect(afterStaked).to.be.equal(remainAmount)
             const afterHolderBalance = await localSxpToken.balanceOf(tokenHolder.address)
             expect(afterHolderBalance).to.be.equal(beforeHolderBalance.add(amount))
+        })
+
+        it('Get prior staked amount', async () => {
+            const amount = '1000000000000000000000'
+            const amount2 = '1200000000000000000000'
+            const amount3 = '200000000000000000000'
+            const amountToStake = '2200000000000000000000'
+            const stakedAmountAfterWithdraw = '2000000000000000000000'
+
+            await localSxpToken.approve(registry.address, amountToStake)
+            const implementation = new ethers.Contract(registry.address, STAKING.interface, tokenHolder)
+            await implementation._totalStaked()
+            await implementation.getStakedAmount(tokenHolder.address)
+            const beforeBlockNumber = await provider.getBlockNumber()
+
+            await implementation.stake(amount)
+            const afterBlockNumber = await provider.getBlockNumber()
+
+            await implementation.stake(amount2)
+            const afterBlockNumber2 = await provider.getBlockNumber()
+            
+            await implementation.withdraw(amount3)
+            const afterBlockNumber3 = await provider.getBlockNumber()
+            
+            const beforePriorStaked = await implementation.getPriorStakedAmount(tokenHolder.address, beforeBlockNumber)
+            expect(beforePriorStaked).to.be.equal('0')
+            const afterPriorStaked = await implementation.getPriorStakedAmount(tokenHolder.address, afterBlockNumber)
+            expect(afterPriorStaked).to.be.equal(amount)
+            const afterPriorStaked2 = await implementation.getPriorStakedAmount(tokenHolder.address, afterBlockNumber2)
+            expect(afterPriorStaked2).to.be.equal(amountToStake)
+            const afterPriorStaked3 = await implementation.getPriorStakedAmount(tokenHolder.address, afterBlockNumber3)
+            expect(afterPriorStaked3).to.be.equal(stakedAmountAfterWithdraw)
+            const afterTotalStaked = await implementation._totalStaked()
+            expect(afterTotalStaked).to.be.equal(afterPriorStaked3)
         })
     })
 
