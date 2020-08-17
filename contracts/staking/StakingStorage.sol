@@ -1,21 +1,23 @@
 pragma solidity ^0.5.0;
 
-/// @title Storage Contract
+/// @title Staking Storage Contract
 /// @author growlot (@growlot)
-contract Storage {
-    /// @notice The name of this contract
-    string public constant name = "Swipe Staking";
+contract StakingStorage {
+    struct Checkpoint {
+        uint256 blockNumberOrCheckpointIndex;
+        uint256 stakedAmount;
+    }
 
     /// @notice Initialized flag - indicates that initialization was made once
     bool internal _initialized;
 
-    address public _owner;
-    address public _authorizedNewOwner;
+    address public _guardian;
+    address public _authorizedNewGuardian;
 
-    address public _tokenAddress;
+    address public _sxpTokenAddress;
 
     uint256 public _minimumStakeAmount;
-    mapping (address => uint256) public _stakedMap;
+    mapping (address => mapping (uint256 => Checkpoint)) internal _stakedMap;
     uint256 public _totalStaked;
 
     uint256 public _prevRewardCycle;
