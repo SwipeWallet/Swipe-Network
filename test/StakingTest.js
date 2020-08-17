@@ -371,33 +371,33 @@ describe('Staking Tests', () => {
             await expect(registry.setImplementationAndCall(stakingV2.address, calldata)).to.be.reverted
             const implementation = new ethers.Contract(registry.address, STAKING.interface, walletOwner)
             expect(await implementation._guardian()).to.be.equal(walletOwner.address)
-            expect(await implementation._tokenAddress()).to.be.equal(localSxpToken.address)
+            expect(await implementation._sxpTokenAddress()).to.be.equal(localSxpToken.address)
             expect(await implementation._rewardProvider()).to.be.equal(walletRewardProvider.address)
         })
 
         it('Storage is saved after upgrade', async () => {
             const implementationOld = new ethers.Contract(registry.address, STAKING.interface, walletOwner)
             expect(await implementationOld._guardian()).to.be.equal(walletOwner.address)
-            expect(await implementationOld._tokenAddress()).to.be.equal(localSxpToken.address)
+            expect(await implementationOld._sxpTokenAddress()).to.be.equal(localSxpToken.address)
 
             await registry.setImplementation(stakingV2.address)
             expect(await registry.getImplementation()).to.be.equal(stakingV2.address)
             const implementation = new ethers.Contract(registry.address, STAKINGV2.interface, walletOwner)
             expect(await implementation._guardian()).to.be.equal(walletOwner.address)
-            expect(await implementation._tokenAddress()).to.be.equal(localSxpToken.address)
+            expect(await implementation._sxpTokenAddress()).to.be.equal(localSxpToken.address)
         })
 
         it('Storage with new updates after upgrade', async () => {
             const implementationOld = new ethers.Contract(registry.address, STAKING.interface, walletOwner)
             expect(await implementationOld._guardian()).to.be.equal(walletOwner.address)
-            expect(await implementationOld._tokenAddress()).to.be.equal(localSxpToken.address)
+            expect(await implementationOld._sxpTokenAddress()).to.be.equal(localSxpToken.address)
 
             await registry.setImplementation(stakingV2.address)
             expect(await registry.getImplementation()).to.be.equal(stakingV2.address)
 
             const implementation = new ethers.Contract(registry.address, STAKINGV2.interface, walletOwner)
             expect(await implementation._guardian()).to.be.equal(walletOwner.address)
-            expect(await implementation._tokenAddress()).to.be.equal(localSxpToken.address)
+            expect(await implementation._sxpTokenAddress()).to.be.equal(localSxpToken.address)
 
             expect(await implementation._upcomingValue()).to.be.equal('0')
             await expect(implementation.upcomingFunction('123456')).to.emit(implementation, 'UpcomingEvent').withArgs('0', '123456')

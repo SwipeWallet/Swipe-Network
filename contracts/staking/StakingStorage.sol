@@ -9,7 +9,7 @@ contract StakingStorage {
     address public _guardian;
     address public _authorizedNewGuardian;
 
-    address public _tokenAddress;
+    address public _sxpTokenAddress;
 
     uint256 public _minimumStakeAmount;
     mapping (address => uint256) public _stakedMap;

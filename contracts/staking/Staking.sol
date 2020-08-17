@@ -27,7 +27,7 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
         );
 
         require(
-            IErc20Token(_tokenAddress).transferFrom(
+            IErc20Token(_sxpTokenAddress).transferFrom(
                 msg.sender,
                 address(this),
                 amount
@@ -63,7 +63,7 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
         );
 
         require(
-            IErc20Token(_tokenAddress).transfer(
+            IErc20Token(_sxpTokenAddress).transfer(
                 msg.sender,
                 amount
             ),
@@ -92,7 +92,7 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
         );
 
         require(
-            IErc20Token(_tokenAddress).transfer(
+            IErc20Token(_sxpTokenAddress).transfer(
                 msg.sender,
                 amount
             ),
@@ -116,12 +116,12 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
      * @notice Initializes contract.
      *
      * @param guardian Guardian address
-     * @param tokenAddress SXP token address
+     * @param sxpTokenAddress SXP token address
      * @param rewardProvider The reward provider address
      */
     function initialize(
         address guardian,
-        address tokenAddress,
+        address sxpTokenAddress,
         address rewardProvider
     ) external {
         require(
@@ -131,7 +131,7 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
 
         if (bytes(name).length == 0) setContractName('Swipe Staking');
         _guardian = guardian;
-        _tokenAddress = tokenAddress;
+        _sxpTokenAddress = sxpTokenAddress;
         _rewardProvider = rewardProvider;
         _minimumStakeAmount = 1000 * (10**18);
         _rewardCycle = 1 days;
@@ -141,7 +141,7 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
 
         emit Initialize(
             _guardian,
-            _tokenAddress,
+            _sxpTokenAddress,
             _rewardProvider,
             _minimumStakeAmount,
             _rewardCycle,
@@ -263,7 +263,7 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
         );
 
         require(
-            IErc20Token(_tokenAddress).transferFrom(
+            IErc20Token(_sxpTokenAddress).transferFrom(
                 msg.sender,
                 address(this),
                 amount
@@ -296,7 +296,7 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
         );
 
         require(
-            IErc20Token(_tokenAddress).transfer(
+            IErc20Token(_sxpTokenAddress).transfer(
                 msg.sender,
                 amount
             ),
@@ -338,5 +338,39 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
         );
 
         return _claimNonce;
+    }
+    
+    /********************
+     * VALUE ACTIONS *
+     ********************/
+
+    /**
+     * @notice Does not accept ETH.
+     */
+    function () external payable {
+        revert();
+    }
+
+    /**
+     * @notice Transfers out any accidentally sent ERC20 tokens.
+     *
+     * @param tokenAddress ERC20 token address, must not SXP
+     * @param amount The amount to transfer out
+     */
+    function transferOtherErc20Token(address tokenAddress, uint256 amount) external returns (bool success) {
+        require(
+            msg.sender == _guardian,
+            "Only the guardian can transfer out"
+        );
+
+        require(
+            tokenAddress != _sxpTokenAddress,
+            "Can't transfer SXP token out"
+        );
+
+        return IErc20Token(tokenAddress).transfer(
+            _guardian,
+            amount
+        );
     }
 }
