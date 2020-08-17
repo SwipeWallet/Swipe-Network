@@ -11,6 +11,10 @@ import "./StakingEvent.sol";
 contract Staking is NamedContract, StakingStorage, StakingEvent {
     using SafeMath for uint256;
 
+    constructor() public {
+        setContractName('Swipe Staking');
+    }
+
     /********************
      * STANDARD ACTIONS *
      ********************/
@@ -170,7 +174,6 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
             "Contract has been already initialized"
         );
 
-        if (bytes(name).length == 0) setContractName('Swipe Staking');
         _guardian = guardian;
         _sxpTokenAddress = sxpTokenAddress;
         _rewardProvider = rewardProvider;
