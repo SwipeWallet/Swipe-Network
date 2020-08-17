@@ -16,6 +16,35 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
      ********************/
 
     /**
+     * @notice Gets the staked amount of the provided address.
+     *
+     * @return The staked amount
+     */
+    function getStakedAmount(address staker) public view returns (uint256) {
+        Checkpoint storage current = _stakedMap[staker][0];
+
+        return current.stakedAmount;
+    }
+
+    /**
+     * @notice Gets the prior staked amount of the provided address, at the provided block number.
+     *
+     * @return The staked amount
+     */
+    function getPriorStakedAmount(address staker, uint256 blockNumber) external view returns (uint256) {
+        Checkpoint storage current = _stakedMap[staker][0];
+
+        for (uint i = current.blockNumberOrCheckpointIndex; i > 0; i--) {
+            Checkpoint storage checkpoint = _stakedMap[staker][i];
+            if (checkpoint.blockNumberOrCheckpointIndex <= blockNumber) {
+                return checkpoint.stakedAmount;
+            }
+        }
+        
+        return 0;
+    }
+
+    /**
      * @notice Stakes the provided amount of SXP from the message sender into this wallet.
      *
      * @param amount The amount to stake
@@ -35,13 +64,19 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
             "Stake failed"
         );
 
+        Checkpoint storage current = _stakedMap[msg.sender][0];
+        current.blockNumberOrCheckpointIndex = current.blockNumberOrCheckpointIndex.add(1);
+        current.stakedAmount = current.stakedAmount.add(amount);
+        _stakedMap[msg.sender][current.blockNumberOrCheckpointIndex] = Checkpoint({
+            blockNumberOrCheckpointIndex: block.number,
+            stakedAmount: current.stakedAmount
+        });
+        _totalStaked = _totalStaked.add(amount);
+
         emit Stake(
             msg.sender,
             amount
         );
-
-        _stakedMap[msg.sender] = _stakedMap[msg.sender].add(amount);
-        _totalStaked = _totalStaked.add(amount);
     }
 
     /**
@@ -87,7 +122,7 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
     */
     function withdraw(uint256 amount) external {
         require(
-            _stakedMap[msg.sender] >= amount,
+            getStakedAmount(msg.sender) >= amount,
             "Exceeded amount"
         );
 
@@ -99,13 +134,19 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
             "Withdraw failed"
         );
 
+        Checkpoint storage current = _stakedMap[msg.sender][0];
+        current.blockNumberOrCheckpointIndex = current.blockNumberOrCheckpointIndex.add(1);
+        current.stakedAmount = current.stakedAmount.sub(amount);
+        _stakedMap[msg.sender][current.blockNumberOrCheckpointIndex] = Checkpoint({
+            blockNumberOrCheckpointIndex: block.number,
+            stakedAmount: current.stakedAmount
+        });
+        _totalStaked = _totalStaked.sub(amount);
+
         emit Withdraw(
             msg.sender,
             amount
         );
-
-        _totalStaked = _totalStaked.sub(amount);
-        _stakedMap[msg.sender] = _stakedMap[msg.sender].sub(amount);
     }
 
     /*****************
@@ -357,7 +398,7 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
      * @param tokenAddress ERC20 token address, must not SXP
      * @param amount The amount to transfer out
      */
-    function transferOtherErc20Token(address tokenAddress, uint256 amount) external returns (bool success) {
+    function transferOtherErc20Token(address tokenAddress, uint256 amount) external returns (bool) {
         require(
             msg.sender == _guardian,
             "Only the guardian can transfer out"
