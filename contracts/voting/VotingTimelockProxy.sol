@@ -7,5 +7,5 @@ import "../SwipeRegistry.sol";
 contract VotingTimelockProxy is SwipeRegistry {
     /// @notice Contract constructor
     /// @dev Calls SwipeRegistry contract constructor
-    constructor(string memory contractName) public SwipeRegistry(contractName) {}
+    constructor() public SwipeRegistry("Swipe Voting Timelock Proxy") {}
 }
