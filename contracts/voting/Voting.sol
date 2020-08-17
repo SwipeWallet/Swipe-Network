@@ -2,6 +2,7 @@ pragma solidity ^0.5.16;
 pragma experimental ABIEncoderV2;
 
 import "../SafeMath.sol";
+import "../NamedContract.sol";
 import "./VotingStorage.sol";
 import "./IVotingTimelock.sol";
 import "../staking/IStaking.sol";
@@ -9,8 +10,12 @@ import "./VotingEvent.sol";
 
 /// @title Voting Contract
 /// @author blockplus (@blockplus), brightdev33 (@brightdev33)
-contract Voting is VotingStorage, VotingEvent {
+contract Voting is NamedContract, VotingStorage, VotingEvent {
     using SafeMath for uint256;
+
+    constructor() public {
+        setContractName('Swipe Voting');
+    }
 
     function initialize(
         address timelockAddress,
@@ -153,8 +158,8 @@ contract Voting is VotingStorage, VotingEvent {
         );
     }
 
-    function internalGetVotingPower(address voter) internal view returns (uint256 votingPower) {
-        votingPower = _staking._stakedMap(voter);
+    function internalGetVotingPower(address voter, uint256 blockNumber) internal view returns (uint256 votingPower) {
+        votingPower = _staking.getPriorStakedAmount(voter, blockNumber);
     }
 
     function propose(
@@ -165,7 +170,7 @@ contract Voting is VotingStorage, VotingEvent {
         string memory description
     ) public returns (uint256) {
         require(
-            internalGetVotingPower(msg.sender) > _proposalThreshold,
+            internalGetVotingPower(msg.sender, 0) > _proposalThreshold,
             "The proposer votes below proposal threshold"
         );
 
@@ -303,7 +308,7 @@ contract Voting is VotingStorage, VotingEvent {
         Proposal storage proposal = _proposals[proposalId];
 
         require(
-            msg.sender == _guardian || internalGetVotingPower(proposal.proposer) < _proposalThreshold,
+            msg.sender == _guardian || internalGetVotingPower(proposal.proposer, proposal.endBlock) < _proposalThreshold,
             "The proposer does not meet threshold"
         );
 
@@ -381,20 +386,25 @@ contract Voting is VotingStorage, VotingEvent {
     }
 
     function getReceipt(uint256 proposalId, address voter) external view returns (Receipt memory) {
-        Receipt memory receipt = _proposals[proposalId].receipts[voter];
-        receipt.votes = internalGetVotingPower(voter);
+        Proposal storage proposal = _proposals[proposalId];
+
+        Receipt memory receipt = proposal.receipts[voter];
+        receipt.votes = internalGetVotingPower(voter, proposal.endBlock);
         
         return receipt;
     }
 
     function getVotes(uint256 proposalId) public view returns (uint256 upVotes, uint256 downVotes) {
-        for (uint i = 0; i < _proposals[proposalId].voterCount; i++) {
-            address voter = _proposals[proposalId].voters[i];
-            Receipt storage receipt = _proposals[proposalId].receipts[voter];
+        Proposal storage proposal = _proposals[proposalId];
+
+        for (uint i = 0; i < proposal.voterCount; i++) {
+            address voter = proposal.voters[i];
+            Receipt storage receipt = proposal.receipts[voter];
+            uint256 votes = internalGetVotingPower(voter, proposal.endBlock);
             if (receipt.support) {
-                upVotes = upVotes.add(internalGetVotingPower(voter));
+                upVotes = upVotes.add(votes);
             } else {
-                downVotes = downVotes.add(internalGetVotingPower(voter));
+                downVotes = downVotes.add(votes);
             }
         }
     }
@@ -412,7 +422,7 @@ contract Voting is VotingStorage, VotingEvent {
         for (uint i = 0; i < proposal.voterCount; i++) {
             address voter = proposal.voters[i];
             Receipt storage receipt = proposal.receipts[voter];
-            uint256 votingPower = internalGetVotingPower(voter);
+            uint256 votingPower = internalGetVotingPower(voter, proposal.endBlock);
             receipt.votes = votingPower;
             if (receipt.support) {
                 upVotes = upVotes.add(votingPower);
@@ -508,7 +518,7 @@ contract Voting is VotingStorage, VotingEvent {
             "The voter already voted"
         );
         
-        uint256 votes = internalGetVotingPower(voter);
+        uint256 votes = internalGetVotingPower(voter, proposal.endBlock);
 
         receipt.hasVoted = true;
         receipt.support = support;
