@@ -36,6 +36,10 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
      * @return The staked amount
      */
     function getPriorStakedAmount(address staker, uint256 blockNumber) external view returns (uint256) {
+        if (blockNumber == 0) {
+            return getStakedAmount(staker);
+        }
+
         Checkpoint storage current = _stakedMap[staker][0];
 
         for (uint i = current.blockNumberOrCheckpointIndex; i > 0; i--) {
