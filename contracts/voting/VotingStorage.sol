@@ -1,7 +1,7 @@
 pragma solidity ^0.5.16;
 
 import "./IVotingTimelock.sol";
-import "../staking/IStaking.sol";
+import "./IStaking.sol";
 
 /// @title Voting Storage Contract
 /// @author blockplus (@blockplus), brightdev33 (@brightdev33)

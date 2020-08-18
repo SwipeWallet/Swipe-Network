@@ -5,7 +5,7 @@ import "../SafeMath.sol";
 import "../NamedContract.sol";
 import "./VotingStorage.sol";
 import "./IVotingTimelock.sol";
-import "../staking/IStaking.sol";
+import "./IStaking.sol";
 import "./VotingEvent.sol";
 
 /// @title Voting Contract
