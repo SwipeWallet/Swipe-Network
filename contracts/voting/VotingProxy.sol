@@ -1,7 +1,7 @@
 pragma solidity ^0.5.0;
 
 import "../SwipeRegistry.sol";
-import "../VotingEvent.sol";
+import "./VotingEvent.sol";
 
 /// @title Voting Proxy Contract
 /// @author blockplus (@blockplus)
