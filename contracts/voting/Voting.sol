@@ -512,13 +512,21 @@ contract Voting is NamedContract, VotingStorage, VotingEvent {
 
         Proposal storage proposal = _proposals[proposalId];
         Receipt storage receipt = proposal.receipts[voter];
-        
+
         require(
             receipt.hasVoted == false,
             "The voter already voted"
         );
         
         uint256 votes = internalGetVotingPower(voter, proposal.endBlock);
+
+        require(
+            votes > 0,
+            "The voting power is zero"
+        );
+
+        proposal.voters[proposal.voterCount] = voter;
+        proposal.voterCount++;
 
         receipt.hasVoted = true;
         receipt.support = support;
