@@ -1,6 +1,6 @@
 pragma solidity ^0.5.0;
 
-import "./SafeMath.sol";
+import "../SafeMath.sol";
 import "../IErc20Token.sol";
 import "../NamedContract.sol";
 import "./StakingStorage.sol";
@@ -36,6 +36,10 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
      * @return The staked amount
      */
     function getPriorStakedAmount(address staker, uint256 blockNumber) external view returns (uint256) {
+        if (blockNumber == 0) {
+            return getStakedAmount(staker);
+        }
+
         Checkpoint storage current = _stakedMap[staker][0];
 
         for (uint i = current.blockNumberOrCheckpointIndex; i > 0; i--) {
@@ -59,15 +63,6 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
             "Too small amount"
         );
 
-        require(
-            IErc20Token(_sxpTokenAddress).transferFrom(
-                msg.sender,
-                address(this),
-                amount
-            ),
-            "Stake failed"
-        );
-
         Checkpoint storage current = _stakedMap[msg.sender][0];
         current.blockNumberOrCheckpointIndex = current.blockNumberOrCheckpointIndex.add(1);
         current.stakedAmount = current.stakedAmount.add(amount);
@@ -80,6 +75,15 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
         emit Stake(
             msg.sender,
             amount
+        );
+
+        require(
+            IErc20Token(_sxpTokenAddress).transferFrom(
+                msg.sender,
+                address(this),
+                amount
+            ),
+            "Stake failed"
         );
     }
 
@@ -101,14 +105,6 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
             "Insufficient reward pool"
         );
 
-        require(
-            IErc20Token(_sxpTokenAddress).transfer(
-                msg.sender,
-                amount
-            ),
-            "Claim failed"
-        );
-
         delete _approvedClaimMap[msg.sender][nonce];
         _rewardPoolAmount = _rewardPoolAmount.sub(amount);
 
@@ -116,6 +112,14 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
             msg.sender,
             amount,
             nonce
+        );
+
+        require(
+            IErc20Token(_sxpTokenAddress).transfer(
+                msg.sender,
+                amount
+            ),
+            "Claim failed"
         );
     }
 
@@ -130,14 +134,6 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
             "Exceeded amount"
         );
 
-        require(
-            IErc20Token(_sxpTokenAddress).transfer(
-                msg.sender,
-                amount
-            ),
-            "Withdraw failed"
-        );
-
         Checkpoint storage current = _stakedMap[msg.sender][0];
         current.blockNumberOrCheckpointIndex = current.blockNumberOrCheckpointIndex.add(1);
         current.stakedAmount = current.stakedAmount.sub(amount);
@@ -150,6 +146,14 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
         emit Withdraw(
             msg.sender,
             amount
+        );
+
+        require(
+            IErc20Token(_sxpTokenAddress).transfer(
+                msg.sender,
+                amount
+            ),
+            "Withdraw failed"
         );
     }
 
@@ -306,6 +310,13 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
             "Only the reword provider can deposit"
         );
 
+        _rewardPoolAmount = _rewardPoolAmount.add(amount);
+
+        emit DepositRewardPool(
+            msg.sender,
+            amount
+        );
+
         require(
             IErc20Token(_sxpTokenAddress).transferFrom(
                 msg.sender,
@@ -313,13 +324,6 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
                 amount
             ),
             "Deposit reward pool failed"
-        );
-
-        _rewardPoolAmount = _rewardPoolAmount.add(amount);
-
-        emit DepositRewardPool(
-            msg.sender,
-            amount
         );
     }
 
@@ -339,19 +343,19 @@ contract Staking is NamedContract, StakingStorage, StakingEvent {
             "Exceeded amount"
         );
 
+        _rewardPoolAmount = _rewardPoolAmount.sub(amount);
+
+        emit WithdrawRewardPool(
+            msg.sender,
+            amount
+        );
+
         require(
             IErc20Token(_sxpTokenAddress).transfer(
                 msg.sender,
                 amount
             ),
             "Withdraw failed"
-        );
-
-        _rewardPoolAmount = _rewardPoolAmount.sub(amount);
-
-        emit WithdrawRewardPool(
-            msg.sender,
-            amount
         );
     }
 
