@@ -16,14 +16,9 @@ function etherUnsigned(num) {
   return ethers.utils.bigNumberify(new BigNumber(num).toFixed());
 }
 
-async function freezeTime(seconds) {
-  await rpc({ method: 'evm_freezeTime', params: [seconds] });
-  return rpc({ method: 'evm_mine' });
-}
 
 module.exports = {
   encodeParameters,
   keccak256,
   etherUnsigned,
-  freezeTime
 } 

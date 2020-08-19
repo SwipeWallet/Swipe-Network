@@ -98,7 +98,7 @@ contract VotingTimelock is VotingTimelockStorage, VotingTimelockEvent {
         uint256 value,
         string calldata signature,
         bytes calldata data,
-        uint32 eta
+        uint256 eta
     ) external returns (bytes32) {
         require(
             msg.sender == _guardian,
