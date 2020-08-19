@@ -2,15 +2,20 @@ pragma solidity ^0.5.16;
 pragma experimental ABIEncoderV2;
 
 import "../SafeMath.sol";
+import "../NamedContract.sol";
 import "./VotingStorage.sol";
 import "./IVotingTimelock.sol";
-import "../staking/IStaking.sol";
+import "./IStaking.sol";
 import "./VotingEvent.sol";
 
 /// @title Voting Contract
 /// @author blockplus (@blockplus), brightdev33 (@brightdev33)
-contract Voting is VotingStorage, VotingEvent {
+contract Voting is NamedContract, VotingStorage, VotingEvent {
     using SafeMath for uint256;
+
+    constructor() public {
+        setContractName('Swipe Voting');
+    }
 
     function initialize(
         address timelockAddress,
@@ -153,6 +158,10 @@ contract Voting is VotingStorage, VotingEvent {
         );
     }
 
+    function internalGetVotingPower(address voter, uint256 blockNumber) internal view returns (uint256 votingPower) {
+        votingPower = _staking.getPriorStakedAmount(voter, blockNumber);
+    }
+
     function propose(
         address[] memory targets,
         uint256[] memory values,
@@ -160,10 +169,10 @@ contract Voting is VotingStorage, VotingEvent {
         bytes[] memory calldatas,
         string memory description
     ) public returns (uint256) {
-        /* require(
-            _staking.getStakedMap(msg.sender) > _proposalThreshold,
-            "Swipe Voting::propose: proposer votes below proposal threshold"
-        );*/
+        require(
+            internalGetVotingPower(msg.sender, 0) > _proposalThreshold,
+            "The proposer votes below proposal threshold"
+        );
 
         require(
             targets.length == values.length && targets.length == signatures.length && targets.length == calldatas.length,
@@ -231,14 +240,14 @@ contract Voting is VotingStorage, VotingEvent {
 
     function queue(uint256 proposalId) external {
         require(
-            state(proposalId) == ProposalState.Succeeded,
+            internalUpdateState(proposalId) == ProposalState.Succeeded,
             "Proposal can only be queued if it is succeeded"
         );
 
         Proposal storage proposal = _proposals[proposalId];
         uint256 eta = block.timestamp.add(_timelock._delay());
         for (uint i = 0; i < proposal.targets.length; i++) {
-            queueOrRevert(
+            internalQueueOrRevert(
                 proposal.targets[i],
                 proposal.values[i],
                 proposal.signatures[i],
@@ -251,7 +260,7 @@ contract Voting is VotingStorage, VotingEvent {
         emit ProposalQueue(proposalId, eta);
     }
 
-    function queueOrRevert(
+    function internalQueueOrRevert(
         address target,
         uint256 value,
         string memory signature,
@@ -296,16 +305,16 @@ contract Voting is VotingStorage, VotingEvent {
     }
 
     function cancel(uint256 proposalId) external {
-        require(
-            state(proposalId) != ProposalState.Executed,
-            "Cannot cancel executed proposal"
-        );
-
         Proposal storage proposal = _proposals[proposalId];
 
         require(
-            msg.sender == _guardian || _staking._stakedMap(proposal.proposer) < _proposalThreshold,
+            msg.sender == _guardian || internalGetVotingPower(proposal.proposer, proposal.endBlock) < _proposalThreshold,
             "The proposer does not meet threshold"
+        );
+
+        require(
+            internalUpdateState(proposalId) != ProposalState.Executed,
+            "Cannot cancel executed proposal"
         );
 
         proposal.canceled = true;
@@ -322,7 +331,40 @@ contract Voting is VotingStorage, VotingEvent {
         emit ProposalCancel(proposalId);
     }
 
-    function getOperations(uint256 proposalId) external view returns (address[] memory targets, uint256[] memory values, string[] memory signatures, bytes[] memory calldatas) {
+    function getProposal(uint256 proposalId) external view returns (
+        uint256 id,
+        address proposer,
+        uint256 eta,
+        uint256 startBlock,
+        uint256 endBlock,
+        uint256 upVotes,
+        uint256 downVotes,
+        bool canceled,
+        bool executed
+    ) {
+        Proposal storage proposal = _proposals[proposalId];
+
+        (uint256 priorUpVotes, uint256 priorDownVotes) = getVotes(proposalId);
+
+        return (
+            proposal.id,
+            proposal.proposer,
+            proposal.eta,
+            proposal.startBlock,
+            proposal.endBlock,
+            priorUpVotes,
+            priorDownVotes,
+            proposal.canceled,
+            proposal.executed
+        );
+    }
+
+    function getOperations(uint256 proposalId) external view returns (
+        address[] memory targets,
+        uint256[] memory values,
+        string[] memory signatures,
+        bytes[] memory calldatas
+    ) {
         Proposal storage proposal = _proposals[proposalId];
         
         return (
@@ -333,9 +375,21 @@ contract Voting is VotingStorage, VotingEvent {
         );
     }
 
+    function getVoters(uint256 proposalId) external view returns (uint256 voterCount, address[] memory voters) {
+        Proposal storage proposal = _proposals[proposalId];
+
+        voterCount = proposal.voterCount;
+        voters = new address[](proposal.voterCount);
+        for (uint i = 0; i < proposal.voterCount; i++) {
+            voters[i] = proposal.voters[i];
+        }
+    }
+
     function getReceipt(uint256 proposalId, address voter) external view returns (Receipt memory) {
-        Receipt memory receipt = _proposals[proposalId].receipts[voter];
-        receipt.votes = _staking._stakedMap(voter);
+        Proposal storage proposal = _proposals[proposalId];
+
+        Receipt memory receipt = proposal.receipts[voter];
+        receipt.votes = internalGetVotingPower(voter, proposal.endBlock);
         
         return receipt;
     }
@@ -346,15 +400,48 @@ contract Voting is VotingStorage, VotingEvent {
         for (uint i = 0; i < proposal.voterCount; i++) {
             address voter = proposal.voters[i];
             Receipt storage receipt = proposal.receipts[voter];
+            uint256 votes = internalGetVotingPower(voter, proposal.endBlock);
             if (receipt.support) {
-                upVotes = upVotes.add(_staking._stakedMap(voter));
+                upVotes = upVotes.add(votes);
             } else {
-                downVotes = downVotes.add(_staking._stakedMap(voter));
+                downVotes = downVotes.add(votes);
             }
         }
     }
 
+    function internalUpdateState(uint256 proposalId) internal returns (ProposalState) {
+        require(
+            _proposalCount >= proposalId && proposalId > 0,
+            "Invalid proposal id"
+        );
+
+        Proposal storage proposal = _proposals[proposalId];
+
+        uint256 upVotes;
+        uint256 downVotes;
+        for (uint i = 0; i < proposal.voterCount; i++) {
+            address voter = proposal.voters[i];
+            Receipt storage receipt = proposal.receipts[voter];
+            uint256 votingPower = internalGetVotingPower(voter, proposal.endBlock);
+            receipt.votes = votingPower;
+            if (receipt.support) {
+                upVotes = upVotes.add(votingPower);
+            } else {
+                downVotes = downVotes.add(votingPower);
+            }
+        }
+
+        proposal.upVotes = upVotes;
+        proposal.downVotes = downVotes;
+
+        return internalState(proposalId, upVotes, downVotes);
+    }
+
     function state(uint256 proposalId) public view returns (ProposalState) {
+        return internalState(proposalId, 0, 0);
+    }
+
+    function internalState(uint256 proposalId, uint256 upVotes, uint256 downVotes) internal view returns (ProposalState) {
         require(
             _proposalCount >= proposalId && proposalId > 0,
             "Invalid proposal id"
@@ -368,7 +455,9 @@ contract Voting is VotingStorage, VotingEvent {
         } else if (block.number <= proposal.endBlock) {
             return ProposalState.Active;
         } else {
-            (uint256 upVotes, uint256 downVotes) = getVotes(proposalId);
+            if (upVotes == 0 && downVotes == 0) {
+                (upVotes, downVotes) = getVotes(proposalId);
+            }
             if (upVotes <= downVotes || upVotes < _quorumVotes) {
                 return ProposalState.Defeated;
             } else if (proposal.eta == 0) {
@@ -384,7 +473,7 @@ contract Voting is VotingStorage, VotingEvent {
     }
 
     function castVote(uint256 proposalId, bool support) external {
-        return doCastVote(msg.sender, proposalId, support);
+        return internalCastVote(msg.sender, proposalId, support);
     }
 
     function castVoteBySig(
@@ -394,7 +483,7 @@ contract Voting is VotingStorage, VotingEvent {
         bytes32 r,
         bytes32 s
     ) external {
-        bytes32 domainSeparator = keccak256(abi.encode(_domainTypeHash, keccak256(bytes(name)), getChainId(), address(this)));
+        bytes32 domainSeparator = keccak256(abi.encode(_domainTypeHash, keccak256(bytes(name)), internalGetChainId(), address(this)));
         bytes32 structHash = keccak256(abi.encode(_ballotTypeHash, proposalId, support));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
         address signatory = ecrecover(digest, v, r, s);
@@ -404,14 +493,14 @@ contract Voting is VotingStorage, VotingEvent {
             "Invalid signature"
         );
 
-        return doCastVote(
+        return internalCastVote(
             signatory,
             proposalId,
             support
         );
     }
 
-    function doCastVote(
+    function internalCastVote(
         address voter,
         uint256 proposalId,
         bool support
@@ -423,13 +512,21 @@ contract Voting is VotingStorage, VotingEvent {
 
         Proposal storage proposal = _proposals[proposalId];
         Receipt storage receipt = proposal.receipts[voter];
-        
+
         require(
             receipt.hasVoted == false,
             "The voter already voted"
         );
         
-        uint256 votes = _staking._stakedMap(voter);
+        uint256 votes = internalGetVotingPower(voter, proposal.endBlock);
+
+        require(
+            votes > 0,
+            "The voting power is zero"
+        );
+
+        proposal.voters[proposal.voterCount] = voter;
+        proposal.voterCount++;
 
         receipt.hasVoted = true;
         receipt.support = support;
@@ -482,7 +579,7 @@ contract Voting is VotingStorage, VotingEvent {
         );
     }
 
-    function getChainId() internal pure returns (uint256 chainId) {
+    function internalGetChainId() internal pure returns (uint256 chainId) {
         assembly {
             chainId := chainid()
         }

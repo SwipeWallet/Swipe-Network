@@ -3,16 +3,21 @@ pragma solidity ^0.5.0;
 /// @title Staking Storage Contract
 /// @author growlot (@growlot)
 contract StakingStorage {
+    struct Checkpoint {
+        uint256 blockNumberOrCheckpointIndex;
+        uint256 stakedAmount;
+    }
+
     /// @notice Initialized flag - indicates that initialization was made once
     bool internal _initialized;
 
     address public _guardian;
     address public _authorizedNewGuardian;
 
-    address public _tokenAddress;
+    address public _sxpTokenAddress;
 
     uint256 public _minimumStakeAmount;
-    mapping (address => uint256) public _stakedMap;
+    mapping (address => mapping (uint256 => Checkpoint)) internal _stakedMap;
     uint256 public _totalStaked;
 
     uint256 public _prevRewardCycle;

@@ -1,7 +1,7 @@
 pragma solidity ^0.5.16;
 
 import "./IVotingTimelock.sol";
-import "../staking/IStaking.sol";
+import "./IStaking.sol";
 
 /// @title Voting Storage Contract
 /// @author blockplus (@blockplus), brightdev33 (@brightdev33)
@@ -21,7 +21,7 @@ contract VotingStorage {
 
     /// @notice The address of the Voting Guardian
     address public _guardian;
-    
+
     address public _authorizedNewGuardian;
 
     /// @notice The number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed
@@ -115,7 +115,7 @@ contract VotingStorage {
     }
 
     /// @notice The official record of all proposals ever proposed
-    mapping (uint256 => Proposal) public _proposals;
+    mapping (uint256 => Proposal) internal _proposals;
 
     /// @notice The latest proposal for each proposer
     mapping (address => uint256) public _latestProposalIds;
