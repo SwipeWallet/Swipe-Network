@@ -1,6 +1,6 @@
 pragma solidity ^0.5.0;
 
-import "./SafeMath.sol";
+import "../SafeMath.sol";
 import "../IErc20Token.sol";
 import "../NamedContract.sol";
 import "./StakingStorage.sol";
