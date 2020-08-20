@@ -1,6 +1,6 @@
 pragma solidity ^0.5.0;
 
-interface IVotingTimelock {
+interface IGovernanceTimelock {
     function _delay() external view returns (uint256);
     function _gracePeriod() external view returns (uint256);
     function assumeGuardianship() external;

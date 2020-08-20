@@ -4,15 +4,15 @@ const { use, expect } = require('chai')
 const { MockProvider, deployContract, solidity} = require('ethereum-waffle')
 const ethers = require('ethers')
 
-const REGISTRY = require('../build/SwipeRegistry')
-const CARDS = require('../build/SwipeCards')
-
 use(solidity)
 
 const getCalldata = require('./helpers/getCalldata')
 
+const PROXY = require('../build/SwipeCardsProxy')
+const CARDS = require('../build/SwipeCards')
+
 describe('Swipe Cards Test', async () => {
-    let registry
+    let proxy
     let cards
 
     const [ 
@@ -25,17 +25,13 @@ describe('Swipe Cards Test', async () => {
     const defaultFeeSplitPercentage = "5"
     
     beforeEach(async() => {
-        registry = await deployContract(cardsWalletOwner, REGISTRY, ['Swipe Cards Proxy'])
+        proxy = await deployContract(cardsWalletOwner, PROXY, [])
         cards = await deployContract(cardsWalletOwner, CARDS, [])
     })
 
     describe('Brand', () => {
-        it('Get cards contract name', async () => {
-            expect(await cards.name()).to.be.equal('Swipe Cards')
-        })
-
-        it('Get registry contract name', async () => {
-            expect(await registry.name()).to.eq('Swipe Cards Proxy')
+        it('Get cards proxy contract name', async () => {
+            expect(await proxy.name()).to.eq('Swipe Cards Proxy')
         })
 
         it('Get cards contract name', async () => {
@@ -44,8 +40,8 @@ describe('Swipe Cards Test', async () => {
               ['address', 'uint256', 'string', 'uint256', 'string'],
               [votingContract.address, defaultLockUp, defaultFee, defaultLockUpTime, defaultFeeSplitPercentage]
             )
-            await registry.setImplementationAndCall(cards.address, calldata)
-            const implementation = new ethers.Contract(registry.address, CARDS.interface, cardsWalletOwner)
+            await proxy.setImplementationAndCall(cards.address, calldata)
+            const implementation = new ethers.Contract(proxy.address, CARDS.interface, cardsWalletOwner)
             expect(await implementation.name()).to.be.equal('Swipe Cards Proxy')
         })
     })
@@ -57,11 +53,11 @@ describe('Swipe Cards Test', async () => {
                 ['address', 'uint256', 'string', 'uint256', 'string'],
                 [votingContract.address, defaultLockUp, defaultFee, defaultLockUpTime, defaultFeeSplitPercentage]
             )
-            await registry.setImplementationAndCall(cards.address, calldata)
+            await proxy.setImplementationAndCall(cards.address, calldata)
         })
 
         it('Get values', async () => {
-            const implementation = new ethers.Contract(registry.address, CARDS.interface, cardsWalletOwner)
+            const implementation = new ethers.Contract(proxy.address, CARDS.interface, cardsWalletOwner)
             expect(await implementation.getCardLockUp()).to.be.equal(defaultLockUp)
             expect(await implementation.getCardFee()).to.be.equal(defaultFee)
             expect(await implementation.getCardLockUpTime()).to.be.equal(defaultLockUpTime)
@@ -74,7 +70,7 @@ describe('Swipe Cards Test', async () => {
             const newLockUpTime = 20000
             const newFeeSplitPercentage = "15"
 
-            const implementation = new ethers.Contract(registry.address, CARDS.interface, cardsWalletOwner)
+            const implementation = new ethers.Contract(proxy.address, CARDS.interface, cardsWalletOwner)
             await expect(implementation.connect(votingContract).setCardLockUp(newLockUp))
                 .to.emit(implementation, 'LockUpUpdate')
                 .withArgs(defaultLockUp, newLockUp)
@@ -98,7 +94,7 @@ describe('Swipe Cards Test', async () => {
             const wrongFee = ""
             const wrongFeeSplitPercentage = ""
 
-            const implementation = new ethers.Contract(registry.address, CARDS.interface, cardsWalletOwner)
+            const implementation = new ethers.Contract(proxy.address, CARDS.interface, cardsWalletOwner)
             await expect(implementation.connect(votingContract).setCardFee(wrongFee)).to.be.reverted
             await expect(implementation.connect(votingContract).setCardFeeSplitPercentage(wrongFeeSplitPercentage)).to.be.reverted
         })
@@ -109,7 +105,7 @@ describe('Swipe Cards Test', async () => {
             const lockUpTime = 20000
             const feeSplitPercentage = "15"
 
-            const implementation = new ethers.Contract(registry.address, CARDS.interface, cardsWalletOwner)
+            const implementation = new ethers.Contract(proxy.address, CARDS.interface, cardsWalletOwner)
             await expect(implementation.connect(otherWallet).setCardLockUp(lockUp)).to.be.reverted
             await expect(implementation.connect(otherWallet).setCardFee(fee)).to.be.reverted
             await expect(implementation.connect(otherWallet).setCardLockUpTime(lockUpTime)).to.be.reverted
@@ -118,24 +114,24 @@ describe('Swipe Cards Test', async () => {
     })
 
     describe('Ownership', () => {
-        it('Get registry owner', async () => {
-            expect(await registry.getOwner()).to.eq(cardsWalletOwner.address)
+        it('Get cards proxy owner', async () => {
+            expect(await proxy.getOwner()).to.eq(cardsWalletOwner.address)
         })
 
-        it('Transfer registry ownership by wrong owner', async () => {
-            const registryWithWrongSigner = registry.connect(walletNewOwner)
-            await expect(registryWithWrongSigner.authorizeOwnershipTransfer(registryWithWrongSigner.address)).to.be.reverted
-            expect(await registry.getOwner()).to.eq(cardsWalletOwner.address)
+        it('Transfer cards proxy ownership by wrong owner', async () => {
+            const proxyWithWrongSigner = proxy.connect(walletNewOwner)
+            await expect(proxyWithWrongSigner.authorizeOwnershipTransfer(proxyWithWrongSigner.address)).to.be.reverted
+            expect(await proxy.getOwner()).to.eq(cardsWalletOwner.address)
         })
 
-        it('Transfer registry ownership', async () => {
-            await registry.authorizeOwnershipTransfer(walletNewOwner.address)
-            expect(await registry.getOwner()).to.eq(cardsWalletOwner.address)
-            expect(await registry.getAuthorizedNewOwner()).to.eq(walletNewOwner.address)
-            const registryWithNewOwner = registry.connect(walletNewOwner)
-            await registryWithNewOwner.assumeOwnership()
-            expect(await registry.getOwner()).to.eq(walletNewOwner.address)
-            expect(await registry.getAuthorizedNewOwner()).to.eq(ethers.constants.AddressZero)            
+        it('Transfer card proxy ownership', async () => {
+            await proxy.authorizeOwnershipTransfer(walletNewOwner.address)
+            expect(await proxy.getOwner()).to.eq(cardsWalletOwner.address)
+            expect(await proxy.getAuthorizedNewOwner()).to.eq(walletNewOwner.address)
+            const proxyWithNewOwner = proxy.connect(walletNewOwner)
+            await proxyWithNewOwner.assumeOwnership()
+            expect(await proxy.getOwner()).to.eq(walletNewOwner.address)
+            expect(await proxy.getAuthorizedNewOwner()).to.eq(ethers.constants.AddressZero)            
         })
 
         it('Get cards guardian', async () => {
@@ -144,8 +140,8 @@ describe('Swipe Cards Test', async () => {
                 ['address', 'uint256', 'string', 'uint256', 'string'],
                 [cardsWalletOwner.address, defaultLockUp, defaultFee, defaultLockUpTime, defaultFeeSplitPercentage]
             )
-            await registry.setImplementationAndCall(cards.address, calldata)
-            const implementation = new ethers.Contract(registry.address, CARDS.interface, cardsWalletOwner)
+            await proxy.setImplementationAndCall(cards.address, calldata)
+            const implementation = new ethers.Contract(proxy.address, CARDS.interface, cardsWalletOwner)
             expect(await implementation._guardian()).to.be.equal(cardsWalletOwner.address)
         })
 
@@ -155,14 +151,14 @@ describe('Swipe Cards Test', async () => {
                 ['address', 'uint256', 'string', 'uint256', 'string'],
                 [votingContract.address, defaultLockUp, defaultFee, defaultLockUpTime, defaultFeeSplitPercentage]
             )
-            await registry.setImplementationAndCall(cards.address, calldata)
-            const implementation = new ethers.Contract(registry.address, CARDS.interface, cardsWalletOwner)
+            await proxy.setImplementationAndCall(cards.address, calldata)
+            const implementation = new ethers.Contract(proxy.address, CARDS.interface, cardsWalletOwner)
             await expect(implementation.connect(votingContract).authorizeGuardianshipTransfer(walletNewGuardian.address))
                 .to.emit(implementation, 'GuardianshipTransferAuthorization')
                 .withArgs(walletNewGuardian.address)
             expect(await implementation._guardian()).to.be.equal(votingContract.address)
 
-            const implementationWithNewGuardian = new ethers.Contract(registry.address, CARDS.interface, walletNewGuardian)
+            const implementationWithNewGuardian = new ethers.Contract(proxy.address, CARDS.interface, walletNewGuardian)
             await expect(implementationWithNewGuardian.assumeGuardianship())
                 .to.emit(implementation, 'GuardianUpdate')
                 .withArgs(votingContract.address, walletNewGuardian.address)

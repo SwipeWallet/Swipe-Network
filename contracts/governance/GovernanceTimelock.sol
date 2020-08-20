@@ -2,16 +2,16 @@ pragma solidity ^0.5.16;
 
 import "../SafeMath.sol";
 import "../NamedContract.sol";
-import "./VotingTimelockStorage.sol";
-import "./VotingTimelockEvent.sol";
+import "./GovernanceTimelockStorage.sol";
+import "./GovernanceTimelockEvent.sol";
 
-/// @title Voting Timelock Contract
+/// @title Governance Timelock Contract
 /// @author blockplus (@blockplus), brightdev33 (@brightdev33)
-contract VotingTimelock is NamedContract, VotingTimelockStorage, VotingTimelockEvent {
+contract GovernanceTimelock is NamedContract, GovernanceTimelockStorage, GovernanceTimelockEvent {
     using SafeMath for uint256;
 
     constructor() public {
-        setContractName('Swipe Voting Timelock');
+        setContractName('Swipe Governance Timelock');
     }
 
     function initialize(

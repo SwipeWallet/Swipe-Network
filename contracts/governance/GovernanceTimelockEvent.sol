@@ -1,8 +1,8 @@
 pragma solidity ^0.5.16;
 
-/// @title Voting Timelock Event Contract
+/// @title Governance Timelock Event Contract
 /// @author blockplus (@blockplus), brightdev33 (@brightdev33)
-contract VotingTimelockEvent {
+contract GovernanceTimelockEvent {
     event Initialize(
         address indexed guardian,
         uint256 indexed delay
