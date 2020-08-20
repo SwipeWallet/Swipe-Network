@@ -5,7 +5,7 @@ const BigNumber = require('bignumber.js');
 
 const { MockProvider, deployContract, solidity} = require('ethereum-waffle')
 const ethers = require('ethers')
-const TIMELOCK = require('../build/Timelock');
+const TIMELOCK = require('../build/VotingTimelock');
 
 use(solidity);
 
