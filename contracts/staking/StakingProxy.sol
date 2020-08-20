@@ -1,7 +1,7 @@
 pragma solidity ^0.5.0;
 
 import "../SwipeRegistry.sol";
-import "../StakingEvent.sol";
+import "./StakingEvent.sol";
 
 /// @title Upgradeable Registry Contract
 /// @author growlot (@growlot)
