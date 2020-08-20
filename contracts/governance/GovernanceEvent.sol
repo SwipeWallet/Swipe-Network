@@ -1,9 +1,9 @@
 pragma solidity ^0.5.16;
 pragma experimental ABIEncoderV2;
 
-/// @title Voting Event Contract
+/// @title Governance Event Contract
 /// @author blockplus (@blockplus), brightdev33 (@brightdev33)
-contract VotingEvent {
+contract GovernanceEvent {
     /// @notice An event emitted when initialize
     event Initialize(
         address indexed timelockAddress,
