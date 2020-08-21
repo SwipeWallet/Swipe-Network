@@ -3,18 +3,18 @@ pragma experimental ABIEncoderV2;
 
 import "../SafeMath.sol";
 import "../NamedContract.sol";
-import "./VotingStorage.sol";
-import "./IVotingTimelock.sol";
+import "./GovernanceStorage.sol";
+import "./IGovernanceTimelock.sol";
 import "./IStaking.sol";
-import "./VotingEvent.sol";
+import "./GovernanceEvent.sol";
 
-/// @title Voting Contract
+/// @title Governance Contract
 /// @author blockplus (@blockplus), brightdev33 (@brightdev33)
-contract Voting is NamedContract, VotingStorage, VotingEvent {
+contract Governance is NamedContract, GovernanceStorage, GovernanceEvent {
     using SafeMath for uint256;
 
     constructor() public {
-        setContractName('Swipe Voting');
+        setContractName('Swipe Governance');
     }
 
     function initialize(
@@ -27,7 +27,7 @@ contract Voting is NamedContract, VotingStorage, VotingEvent {
             "Contract has been already initialized"
         );
 
-        _timelock = IVotingTimelock(timelockAddress);
+        _timelock = IGovernanceTimelock(timelockAddress);
         _staking = IStaking(stakingAddress);
         _guardian = guardian;
 

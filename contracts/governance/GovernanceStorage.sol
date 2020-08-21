@@ -1,25 +1,25 @@
 pragma solidity ^0.5.16;
 
-import "./IVotingTimelock.sol";
+import "./IGovernanceTimelock.sol";
 import "./IStaking.sol";
 
-/// @title Voting Storage Contract
+/// @title Governance Storage Contract
 /// @author blockplus (@blockplus), brightdev33 (@brightdev33)
-contract VotingStorage {
+contract GovernanceStorage {
 
     /// @notice Initialized flag - indicates that initialization was made once
     bool internal _initialized;
 
     /// @notice The name of this contract
-    string public constant name = "Swipe Voting";
+    string public constant name = "Swipe Governance";
 
     /// @notice The address of the Swipe Timelock
-    IVotingTimelock public _timelock;
+    IGovernanceTimelock public _timelock;
 
-    /// @notice The address of the Swipe voting token
+    /// @notice The address of the Swipe Staking contract
     IStaking public _staking;
 
-    /// @notice The address of the Voting Guardian
+    /// @notice The address of the governance guardian
     address public _guardian;
 
     address public _authorizedNewGuardian;
