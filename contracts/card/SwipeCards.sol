@@ -5,7 +5,7 @@ import "./SwipeCardsStorage.sol";
 import "./SwipeCardsEvent.sol";
 
 /// @title Swipe Cards Contract: Configurations of Swipe Network
-/// @author brightdev33 (@brightdev33)
+/// @author brightdev33 (@brightdev33), blockplus (@blockplus)
 contract SwipeCards is NamedContract, SwipeCardsStorage, SwipeCardsEvent {
     /// @notice Card constructor
     constructor() public {
@@ -13,34 +13,18 @@ contract SwipeCards is NamedContract, SwipeCardsStorage, SwipeCardsEvent {
     }
 
     /// @notice Card Initializer
-    /// @dev Set default network configuration values
-    function initialize(
-        address guardian,
-        uint256 lockUp,
-        string calldata fee,
-        uint256 lockUpTime,
-        string calldata feeSplitPercentage
-    ) external {
+    /// @dev Sets default guardian
+    function initialize(address guardian) external {
         require(
             !_initialized,
             "Cards Contract has been already initialized"
         );
         
         _guardian = guardian;
-        _lockUp = lockUp;
-        _fee = fee;
-        _lockUpTime = lockUpTime;
-        _feeSplitPercentage = feeSplitPercentage;
 
         _initialized = true;
 
-        emit Initialize(
-            _guardian,
-            _lockUp,
-            _fee,
-            _lockUpTime,
-            _feeSplitPercentage
-        );
+        emit Initialize(_guardian);
     }
 
     /**
@@ -81,103 +65,258 @@ contract SwipeCards is NamedContract, SwipeCardsStorage, SwipeCardsEvent {
         );
     }
 
-    /// @notice Set Card Lock Up
-    /// @dev Set Card Lock Up configuration value
-    function setCardLockUp(uint256 newLockUp) external {
+    /// @notice Registers new card
+    /// @dev Creates an new card with the provided configurations
+    function registerCard(
+        string calldata cardName,
+        uint256 lockUp,
+        uint256 lockUpTime,
+        string calldata fee,
+        string calldata feeSplitPercentage
+    ) external returns (uint256) {
+        require(
+            bytes(cardName).length > 0,
+            "Invalid card name"
+        );
+        require(
+            lockUp >= 0,
+            "Card lockup must be equal or greater than zero"
+        );
+        require(
+            lockUpTime >= 0 seconds,
+            "Card lockup time must be equal or greater than zero"
+        );
+        require(
+            bytes(fee).length > 0,
+            "Card fee must be equal or greater than zero"
+        );
+        require(
+            bytes(feeSplitPercentage).length > 0,
+            "Card fee split percentage must be equal or greater than zero"
+        );
+
+        require(
+            msg.sender == _guardian,
+            "Only the guardian can register new card"
+        );
+
+        _cardCount++;
+        Card memory newCard = Card({
+            cardId: _cardCount,
+            cardName: cardName,
+            lockUp: lockUp,
+            lockUpTime: lockUpTime,
+            fee: fee,
+            feeSplitPercentage: feeSplitPercentage
+        });
+        _cards[newCard.cardId] = newCard;
+
+        emit CardRegistration(
+            newCard.cardId,
+            newCard.cardName,
+            newCard.lockUp,
+            newCard.lockUpTime,
+            newCard.fee,
+            newCard.feeSplitPercentage
+        );
+
+        return newCard.cardId;
+    }
+
+    /// @notice Updates card
+    /// @dev Updates the card with the provided configurations
+    function setCard(
+        uint256 cardId,
+        string calldata cardName,
+        uint256 lockUp,
+        uint256 lockUpTime,
+        string calldata fee,
+        string calldata feeSplitPercentage
+    ) external returns (uint256) {
+        require(
+            _cardCount >= cardId && cardId > 0,
+            "Invalid card id"
+        );
+        require(
+            bytes(cardName).length > 0,
+            "Invalid card name"
+        );
+        require(
+            lockUp >= 0,
+            "Card lockup must be equal or greater than zero"
+        );
+        require(
+            lockUpTime >= 0 seconds,
+            "Card lockup time must be equal or greater than zero"
+        );
+        require(
+            bytes(fee).length > 0,
+            "Card fee must be equal or greater than zero"
+        );
+        require(
+            bytes(feeSplitPercentage).length > 0,
+            "Card fee split percentage must be equal or greater than zero"
+        );
+
+        require(
+            msg.sender == _guardian,
+            "Only the guardian can update card"
+        );
+
+        Card storage card = _cards[cardId];
+        card.cardName = cardName;
+        card.lockUp = lockUp;
+        card.lockUpTime = lockUpTime;
+        card.fee = fee;
+        card.feeSplitPercentage = feeSplitPercentage;
+
+        emit CardUpdate(
+            card.cardId,
+            card.cardName,
+            card.lockUp,
+            card.lockUpTime,
+            card.fee,
+            card.feeSplitPercentage
+        );
+    }
+
+    /// @notice Sets Card Name
+    /// @dev Sets Card Name configuration value
+    function setCardName(uint256 cardId, string calldata newName) external {
+        require(
+            _cardCount >= cardId && cardId > 0,
+            "Invalid card id"
+        );
+        require(
+            bytes(newName).length > 0,
+            "Invalid card name"
+        );
+
+        require(
+            msg.sender == _guardian,
+            "Only the guardian can set card name configuration value"
+        );
+
+        Card storage card = _cards[cardId];
+        string memory oldValue = card.cardName;
+        card.cardName = newName;
+
+        emit CardNameUpdate(
+            cardId,
+            oldValue,
+            card.cardName
+        );
+    }
+
+    /// @notice Sets Card Lock Up
+    /// @dev Sets Card Lock Up configuration value
+    function setCardLockUp(uint256 cardId, uint256 newLockUp) external {
+        require(
+            _cardCount >= cardId && cardId > 0,
+            "Invalid card id"
+        );
         require(
             newLockUp >= 0,
-            "Card lockup should be equal or great than zero."
+            "Card lockup must be equal or greater than zero"
         );
+
         require(
             msg.sender == _guardian,
-            "Only the guardian can set card lockup configuration value."
+            "Only the guardian can set card lockup configuration value"
         );
 
-        uint256 oldValue = _lockUp;
-        _lockUp = newLockUp;
+        Card storage card = _cards[cardId];
+        uint256 oldValue = card.lockUp;
+        card.lockUp = newLockUp;
 
-        emit LockUpUpdate(oldValue, _lockUp);
+        emit LockUpUpdate(
+            cardId,
+            oldValue,
+            card.lockUp
+        );
     }
 
-    /// @notice Get Card Lock Up
-    /// @dev Get Card Lock Up configuration value
-    function getCardLockUp() public view returns (uint256) {
-        return _lockUp;
-    }
-
-    /// @notice Set Card Fee
-    /// @dev Set Card Fee configuration value
-    function setCardFee(string calldata newFee) external {
-        bytes memory tempNewFee = bytes(newFee);
-
+    /// @notice Sets Card Lock Up Times
+    /// @dev Sets Card Lock Up Times configuration value
+    function setCardLockUpTime(uint256 cardId, uint256 newLockUpTime) external {
         require(
-            tempNewFee.length > 0,
-            "Card fee should be equal or great than zero."
+            _cardCount >= cardId && cardId > 0,
+            "Invalid card id"
         );
-        require(
-            msg.sender == _guardian,
-            "Only the guardian can set card fee configuration value."
-        );
-
-        string memory oldValue = _fee;
-        _fee = newFee;
-
-        emit FeeUpdate(oldValue, _fee);
-    }
-
-    /// @notice Get Card Fee
-    /// @dev Get Card Fee configuration value
-    function getCardFee() public view returns (string memory) {
-        return _fee;
-    }
-
-    /// @notice Set Card Lock Up Times
-    /// @dev Set Card Lock Up Times configuration value
-    function setCardLockUpTime(uint256 newLockUpTime) external {
         require(
             newLockUpTime >= 0 seconds,
-            "Card lockup time should be great than zero."
+            "Card lockup time must be greater than zero"
         );
+
         require(
             msg.sender == _guardian,
-            "Only the guardian can set card lockup times configuration value."
+            "Only the guardian can set card lockup times configuration value"
         );
 
-        uint256 oldValue = _lockUpTime;
-        _lockUpTime = newLockUpTime;
+        Card storage card = _cards[cardId];
+        uint256 oldValue = card.lockUpTime;
+        card.lockUpTime = newLockUpTime;
 
-        emit LockUpTimeUpdate(oldValue, _lockUpTime);
+        emit LockUpTimeUpdate(
+            cardId,
+            oldValue,
+            card.lockUpTime
+        );
     }
 
-    /// @notice Get Card Lock Up Times
-    /// @dev Get Card Lock Up Times configuration value
-    function getCardLockUpTime() public view returns (uint256) {
-        return _lockUpTime;
+    /// @notice Sets Card Fee
+    /// @dev Sets Card Fee configuration value
+    function setCardFee(uint256 cardId, string calldata newFee) external {
+        require(
+            _cardCount >= cardId && cardId > 0,
+            "Invalid card id"
+        );
+        require(
+            bytes(newFee).length > 0,
+            "Card fee must be equal or greater than zero"
+        );
+
+        require(
+            msg.sender == _guardian,
+            "Only the guardian can set card fee configuration value"
+        );
+
+        Card storage card = _cards[cardId];
+        string memory oldValue = card.fee;
+        card.fee = newFee;
+
+        emit FeeUpdate(
+            cardId,
+            oldValue,
+            card.fee
+        );
     }
 
     /// @notice Set Fee Split Percentage Percentage
     /// @dev Set Fee Split Percentage configuration value
-    function setCardFeeSplitPercentage(string calldata newFeeSplitPercentage) external {
-        bytes memory tempNewFeeSplitPercentage = bytes(newFeeSplitPercentage);
-
+    function setCardFeeSplitPercentage(uint256 cardId, string calldata newFeeSplitPercentage) external {
         require(
-            tempNewFeeSplitPercentage.length > 0,
-            "Card fee split percentage should be equal or great than zero."
+            _cardCount >= cardId && cardId > 0,
+            "Invalid card id"
         );
+        require(
+            bytes(newFeeSplitPercentage).length > 0,
+            "Card fee split percentage must be equal or greater than zero"
+        );
+
         require(
             msg.sender == _guardian,
-            "Only the guardian can set card fee split percentage configuration value."
+            "Only the guardian can set card fee split percentage configuration value"
         );
 
-        string memory oldValue = _feeSplitPercentage;
-        _feeSplitPercentage = newFeeSplitPercentage;
+        Card storage card = _cards[cardId];
+        string memory oldValue = card.feeSplitPercentage;
+        card.feeSplitPercentage = newFeeSplitPercentage;
 
-        emit FeeSplitPercentageUpdate(oldValue, _feeSplitPercentage);
-    }
-
-    /// @notice Get Card Fee Split Percentage
-    /// @dev Get Fee Split Percentage configuration value
-    function getCardFeeSplitPercentage() public view returns (string memory) {
-        return _feeSplitPercentage;
+        emit FeeSplitPercentageUpdate(
+            cardId,
+            oldValue,
+            card.feeSplitPercentage
+        );
     }
 }

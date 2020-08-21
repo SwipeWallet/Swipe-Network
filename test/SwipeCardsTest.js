@@ -11,122 +11,249 @@ const getCalldata = require('./helpers/getCalldata')
 const PROXY = require('../build/SwipeCardsProxy')
 const CARDS = require('../build/SwipeCards')
 
-describe('Swipe Cards Test', async () => {
+describe('Swipe Cards Tests', async () => {
     let proxy
     let cards
 
     const [ 
-        cardsWalletOwner, votingContract, walletNewOwner, walletNewGuardian, otherWallet 
+        walletOwner, votingContract, walletNewOwner, walletNewGuardian, otherWallet 
     ] = new MockProvider({ total_accounts: 5 }).getWallets()
 
+    const defaultCardId = 1
+    const defaultCardName = 'SwipeVisa'
     const defaultLockUp = 300
-    const defaultFee = "0.25"
     const defaultLockUpTime = 10000
-    const defaultFeeSplitPercentage = "5"
+    const defaultFee = '0.25'
+    const defaultFeeSplitPercentage = '5'
     
     beforeEach(async() => {
-        proxy = await deployContract(cardsWalletOwner, PROXY, [])
-        cards = await deployContract(cardsWalletOwner, CARDS, [])
+        proxy = await deployContract(walletOwner, PROXY, [])
+        cards = await deployContract(walletOwner, CARDS, [])
     })
 
     describe('Brand', () => {
-        it('Get cards proxy contract name', async () => {
-            expect(await proxy.name()).to.eq('Swipe Cards Proxy')
-        })
+      it('Get cards proxy contract name', async () => {
+        expect(await proxy.name()).to.eq('Swipe Cards Proxy')
+      })
 
-        it('Get cards contract name', async () => {
-            const calldata = getCalldata(
-              'initialize',
-              ['address', 'uint256', 'string', 'uint256', 'string'],
-              [votingContract.address, defaultLockUp, defaultFee, defaultLockUpTime, defaultFeeSplitPercentage]
-            )
-            await proxy.setImplementationAndCall(cards.address, calldata)
-            const implementation = new ethers.Contract(proxy.address, CARDS.interface, cardsWalletOwner)
-            expect(await implementation.name()).to.be.equal('Swipe Cards Proxy')
-        })
+      it('Get cards contract name', async () => {
+        const calldata = getCalldata('initialize', ['address'], [votingContract.address])
+        await proxy.setImplementationAndCall(cards.address, calldata)
+        const implementation = new ethers.Contract(proxy.address, CARDS.interface, walletOwner)
+        expect(await implementation.name()).to.be.equal('Swipe Cards Proxy')
+      })
     })
 
-    describe('Swipe Cards Features', async () => {
+    describe('Swipe cards features', async () => {
         beforeEach(async () => {
-            const calldata = getCalldata(
-                'initialize',
-                ['address', 'uint256', 'string', 'uint256', 'string'],
-                [votingContract.address, defaultLockUp, defaultFee, defaultLockUpTime, defaultFeeSplitPercentage]
-            )
+            const calldata = getCalldata('initialize', ['address'], [votingContract.address])
             await proxy.setImplementationAndCall(cards.address, calldata)
         })
 
-        it('Get values', async () => {
-            const implementation = new ethers.Contract(proxy.address, CARDS.interface, cardsWalletOwner)
-            expect(await implementation.getCardLockUp()).to.be.equal(defaultLockUp)
-            expect(await implementation.getCardFee()).to.be.equal(defaultFee)
-            expect(await implementation.getCardLockUpTime()).to.be.equal(defaultLockUpTime)
-            expect(await implementation.getCardFeeSplitPercentage()).to.be.equal(defaultFeeSplitPercentage)
+        it('Register card', async () => {
+            const implementation = new ethers.Contract(proxy.address, CARDS.interface, votingContract)
+            await expect(implementation.registerCard(
+                defaultCardName,
+                defaultLockUp,
+                defaultLockUpTime,
+                defaultFee,
+                defaultFeeSplitPercentage))
+            .to.emit(implementation, 'CardRegistration')
+            .withArgs(
+                1,
+                defaultCardName,
+                defaultLockUp,
+                defaultLockUpTime,
+                defaultFee,
+                defaultFeeSplitPercentage)
         })
+
+        describe('Swipe cards configuration', async () => {
+            beforeEach(async () => {
+                const implementation = new ethers.Contract(proxy.address, CARDS.interface, votingContract)
+                await implementation.registerCard(
+                    defaultCardName,
+                    defaultLockUp,
+                    defaultLockUpTime,
+                    defaultFee,
+                    defaultFeeSplitPercentage)
+            })
+
+            it('Get card', async () => {
+                const implementation = new ethers.Contract(proxy.address, CARDS.interface, votingContract)
+                const card = await implementation._cards(defaultCardId)
+                expect(card.cardId).to.be.equal(defaultCardId)
+                expect(card.cardName).to.be.equal(defaultCardName)
+                expect(card.lockUp).to.be.equal(defaultLockUp)
+                expect(card.lockUpTime).to.be.equal(defaultLockUpTime)
+                expect(card.fee).to.be.equal(defaultFee)
+                expect(card.feeSplitPercentage).to.be.equal(defaultFeeSplitPercentage)
+            })
+
+            it('Set card', async () => {
+                const cardId = 1
+                const newCardName = 'SwipeMaster'
+                const newLockUp = 200
+                const newLockUpTime = 20000
+                const newFee = '0.456'
+                const newFeeSplitPercentage = '12.01'
+
+                const implementation = new ethers.Contract(proxy.address, CARDS.interface, votingContract)
+                await expect(implementation.setCard(
+                    cardId,
+                    newCardName,
+                    newLockUp,
+                    newLockUpTime,
+                    newFee,
+                    newFeeSplitPercentage))
+                .to.emit(implementation, 'CardUpdate')
+                .withArgs(
+                    cardId,
+                    newCardName,
+                    newLockUp,
+                    newLockUpTime,
+                    newFee,
+                    newFeeSplitPercentage)
+
+                const card = await implementation._cards(cardId)
+                expect(card.cardId).to.be.equal(cardId)
+                expect(card.cardName).to.be.equal(newCardName)
+                expect(card.lockUp).to.be.equal(newLockUp)
+                expect(card.lockUpTime).to.be.equal(newLockUpTime)
+                expect(card.fee).to.be.equal(newFee)
+                expect(card.feeSplitPercentage).to.be.equal(newFeeSplitPercentage)
+            })
       
-        it('Set values', async () => {
-            const newLockUp = 3000
-            const newFee = "0.5"
-            const newLockUpTime = 20000
-            const newFeeSplitPercentage = "15"
+            it('Set not-registered card', async () => {
+                const wrongCardId = 2
+                const newCardName = 'SwipeMaster'
+                const newLockUp = 200
+                const newLockUpTime = 20000
+                const newFee = '0.456'
+                const newFeeSplitPercentage = '12.01'
 
-            const implementation = new ethers.Contract(proxy.address, CARDS.interface, cardsWalletOwner)
-            await expect(implementation.connect(votingContract).setCardLockUp(newLockUp))
-                .to.emit(implementation, 'LockUpUpdate')
-                .withArgs(defaultLockUp, newLockUp)
-            await expect(implementation.connect(votingContract).setCardFee(newFee))
-                .to.emit(implementation, 'FeeUpdate')
-                .withArgs(defaultFee, newFee)
-            await expect(implementation.connect(votingContract).setCardLockUpTime(newLockUpTime))
-                .to.emit(implementation, 'LockUpTimeUpdate')
-                .withArgs(defaultLockUpTime, newLockUpTime)
-            await expect(implementation.connect(votingContract).setCardFeeSplitPercentage(newFeeSplitPercentage))
-                .to.emit(implementation, 'FeeSplitPercentageUpdate')
-                .withArgs(defaultFeeSplitPercentage, newFeeSplitPercentage)
-
-            expect(await implementation.getCardLockUp()).to.be.equal(newLockUp)
-            expect(await implementation.getCardFee()).to.be.equal(newFee)
-            expect(await implementation.getCardLockUpTime()).to.be.equal(newLockUpTime)
-            expect(await implementation.getCardFeeSplitPercentage()).to.be.equal(newFeeSplitPercentage)
-        })
+                const implementation = new ethers.Contract(proxy.address, CARDS.interface, votingContract)
+                await expect(implementation.setCard(
+                    wrongCardId,
+                    newCardName,
+                    newLockUp,
+                    newLockUpTime,
+                    newFee,
+                    newFeeSplitPercentage)).to.be.reverted
+            })
       
-        it('Set wrong values', async () => {
-            const wrongFee = ""
-            const wrongFeeSplitPercentage = ""
+            it('Set card with wrong values', async () => {
+                const cardId = 1
+                const wrongCardName = ''
+                const wrongLockUp = 0
+                const wrongLockUpTime = 0
+                const wrongFee = ''
+                const wrongFeeSplitPercentage = ''
 
-            const implementation = new ethers.Contract(proxy.address, CARDS.interface, cardsWalletOwner)
-            await expect(implementation.connect(votingContract).setCardFee(wrongFee)).to.be.reverted
-            await expect(implementation.connect(votingContract).setCardFeeSplitPercentage(wrongFeeSplitPercentage)).to.be.reverted
-        })
+                const implementation = new ethers.Contract(proxy.address, CARDS.interface, votingContract)
+                await expect(implementation.setCard(
+                    cardId,
+                    wrongCardName,
+                    wrongLockUp,
+                    wrongLockUpTime,
+                    wrongFee,
+                    wrongFeeSplitPercentage)).to.be.reverted
+            })
       
-        it('Set values from wrong address', async () => {
-            const lockUp = 3000
-            const fee = "0.5"
-            const lockUpTime = 20000
-            const feeSplitPercentage = "15"
+            it('Set card by wrong guardian', async () => {
+                const cardId = 1
+                const newCardName = 'SwipeMaster'
+                const newLockUp = 3000
+                const newLockUpTime = 20000
+                const newFee = '0.5'
+                const newFeeSplitPercentage = '15'
 
-            const implementation = new ethers.Contract(proxy.address, CARDS.interface, cardsWalletOwner)
-            await expect(implementation.connect(otherWallet).setCardLockUp(lockUp)).to.be.reverted
-            await expect(implementation.connect(otherWallet).setCardFee(fee)).to.be.reverted
-            await expect(implementation.connect(otherWallet).setCardLockUpTime(lockUpTime)).to.be.reverted
-            await expect(implementation.connect(otherWallet).setCardFeeSplitPercentage(feeSplitPercentage)).to.be.reverted
+                const implementation = new ethers.Contract(proxy.address, CARDS.interface, otherWallet)
+                await expect(implementation.setCardName(cardId, newCardName)).to.be.reverted
+                await expect(implementation.setCardLockUp(cardId, newLockUp)).to.be.reverted
+                await expect(implementation.setCardLockUpTime(cardId, newLockUpTime)).to.be.reverted
+                await expect(implementation.setCardFee(cardId, newFee)).to.be.reverted
+                await expect(implementation.setCardFeeSplitPercentage(cardId, newFeeSplitPercentage)).to.be.reverted
+            })
+      
+            it('Set individual values', async () => {
+                const cardId = 1
+                const newCardName = 'SwipeMaster'
+                const newLockUp = 3000
+                const newLockUpTime = 20000
+                const newFee = '0.5'
+                const newFeeSplitPercentage = '15'
+
+                const implementation = new ethers.Contract(proxy.address, CARDS.interface, votingContract)
+                await expect(implementation.setCardName(cardId, newCardName))
+                    .to.emit(implementation, 'CardNameUpdate')
+                    .withArgs(cardId, defaultCardName, newCardName)
+                await expect(implementation.setCardLockUp(cardId, newLockUp))
+                    .to.emit(implementation, 'LockUpUpdate')
+                    .withArgs(cardId, defaultLockUp, newLockUp)
+                await expect(implementation.setCardLockUpTime(cardId, newLockUpTime))
+                    .to.emit(implementation, 'LockUpTimeUpdate')
+                    .withArgs(cardId, defaultLockUpTime, newLockUpTime)
+                await expect(implementation.setCardFee(cardId, newFee))
+                    .to.emit(implementation, 'FeeUpdate')
+                    .withArgs(cardId, defaultFee, newFee)
+                await expect(implementation.setCardFeeSplitPercentage(cardId, newFeeSplitPercentage))
+                    .to.emit(implementation, 'FeeSplitPercentageUpdate')
+                    .withArgs(cardId, defaultFeeSplitPercentage, newFeeSplitPercentage)
+
+                const card = await implementation._cards(cardId)
+                expect(card.cardId).to.be.equal(cardId)
+                expect(card.cardName).to.be.equal(newCardName)
+                expect(card.lockUp).to.be.equal(newLockUp)
+                expect(card.lockUpTime).to.be.equal(newLockUpTime)
+                expect(card.fee).to.be.equal(newFee)
+                expect(card.feeSplitPercentage).to.be.equal(newFeeSplitPercentage)
+            })
+      
+            it('Set individual with wrong values', async () => {
+                const cardId = 1
+                const wrongCardName = ''
+                const wrongFee = ''
+                const wrongFeeSplitPercentage = ''
+
+                const implementation = new ethers.Contract(proxy.address, CARDS.interface, votingContract)
+                await expect(implementation.setCardName(cardId, wrongCardName)).to.be.reverted
+                await expect(implementation.setCardFee(cardId, wrongFee)).to.be.reverted
+                await expect(implementation.setCardFeeSplitPercentage(cardId, wrongFeeSplitPercentage)).to.be.reverted
+            })
+      
+            it('Set individual values by wrong guardian', async () => {
+                const cardId = 1
+                const newCardName = 'SwipeMaster'
+                const newLockUp = 3000
+                const newLockUpTime = 20000
+                const newFee = '0.5'
+                const newFeeSplitPercentage = '15'
+
+                const implementation = new ethers.Contract(proxy.address, CARDS.interface, otherWallet)
+                await expect(implementation.setCardName(cardId, newCardName)).to.be.reverted
+                await expect(implementation.setCardLockUp(cardId, newLockUp)).to.be.reverted
+                await expect(implementation.setCardLockUpTime(cardId, newLockUpTime)).to.be.reverted
+                await expect(implementation.setCardFee(cardId, newFee)).to.be.reverted
+                await expect(implementation.setCardFeeSplitPercentage(cardId, newFeeSplitPercentage)).to.be.reverted
+            })
         })
     })
 
     describe('Ownership', () => {
         it('Get cards proxy owner', async () => {
-            expect(await proxy.getOwner()).to.eq(cardsWalletOwner.address)
+            expect(await proxy.getOwner()).to.eq(walletOwner.address)
         })
 
         it('Transfer cards proxy ownership by wrong owner', async () => {
             const proxyWithWrongSigner = proxy.connect(walletNewOwner)
             await expect(proxyWithWrongSigner.authorizeOwnershipTransfer(proxyWithWrongSigner.address)).to.be.reverted
-            expect(await proxy.getOwner()).to.eq(cardsWalletOwner.address)
+            expect(await proxy.getOwner()).to.eq(walletOwner.address)
         })
 
         it('Transfer card proxy ownership', async () => {
             await proxy.authorizeOwnershipTransfer(walletNewOwner.address)
-            expect(await proxy.getOwner()).to.eq(cardsWalletOwner.address)
+            expect(await proxy.getOwner()).to.eq(walletOwner.address)
             expect(await proxy.getAuthorizedNewOwner()).to.eq(walletNewOwner.address)
             const proxyWithNewOwner = proxy.connect(walletNewOwner)
             await proxyWithNewOwner.assumeOwnership()
@@ -135,25 +262,17 @@ describe('Swipe Cards Test', async () => {
         })
 
         it('Get cards guardian', async () => {
-            const calldata = getCalldata(
-                'initialize',
-                ['address', 'uint256', 'string', 'uint256', 'string'],
-                [cardsWalletOwner.address, defaultLockUp, defaultFee, defaultLockUpTime, defaultFeeSplitPercentage]
-            )
+            const calldata = getCalldata('initialize', ['address'], [walletOwner.address])
             await proxy.setImplementationAndCall(cards.address, calldata)
-            const implementation = new ethers.Contract(proxy.address, CARDS.interface, cardsWalletOwner)
-            expect(await implementation._guardian()).to.be.equal(cardsWalletOwner.address)
+            const implementation = new ethers.Contract(proxy.address, CARDS.interface, walletOwner)
+            expect(await implementation._guardian()).to.be.equal(walletOwner.address)
         })
 
         it('Transfer cards guardianship to another address', async () => {
-            const calldata = getCalldata(
-                'initialize',
-                ['address', 'uint256', 'string', 'uint256', 'string'],
-                [votingContract.address, defaultLockUp, defaultFee, defaultLockUpTime, defaultFeeSplitPercentage]
-            )
+            const calldata = getCalldata('initialize', ['address'], [votingContract.address])
             await proxy.setImplementationAndCall(cards.address, calldata)
-            const implementation = new ethers.Contract(proxy.address, CARDS.interface, cardsWalletOwner)
-            await expect(implementation.connect(votingContract).authorizeGuardianshipTransfer(walletNewGuardian.address))
+            const implementation = new ethers.Contract(proxy.address, CARDS.interface, votingContract)
+            await expect(implementation.authorizeGuardianshipTransfer(walletNewGuardian.address))
                 .to.emit(implementation, 'GuardianshipTransferAuthorization')
                 .withArgs(walletNewGuardian.address)
             expect(await implementation._guardian()).to.be.equal(votingContract.address)

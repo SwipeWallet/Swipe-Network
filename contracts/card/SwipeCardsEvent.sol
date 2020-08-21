@@ -1,15 +1,11 @@
 pragma solidity ^0.5.0;
 
 /// @title Swipe Cards Event Contract
-/// @author brightdev33 (@brightdev33)
+/// @author brightdev33 (@brightdev33), blockplus (@blockplus)
 contract SwipeCardsEvent {
     /// @notice An event emitted when initialize
     event Initialize(
-        address indexed guardian,
-        uint256 indexed lockUp,
-        string indexed fee,
-        uint256 lockUpTime,
-        string feeSplitPercentage
+        address indexed guardian
     );
 
     event GuardianshipTransferAuthorization(
@@ -21,22 +17,50 @@ contract SwipeCardsEvent {
         address indexed newValue
     );
 
-    event LockUpUpdate(
-        uint256 indexed oldValue,
-        uint256 indexed newValue
+    event CardRegistration(
+        uint256 indexed cardId,
+        string cardName,
+        uint256 lockUp,
+        uint256 lockUpTime,
+        string fee,
+        string feeSplitPercentage
     );
 
-    event FeeUpdate(
+    event CardUpdate(
+        uint256 indexed cardId,
+        string cardName,
+        uint256 lockUp,
+        uint256 lockUpTime,
+        string fee,
+        string feeSplitPercentage
+    );
+
+    event CardNameUpdate(
+        uint256 indexed cardId,
         string oldValue,
         string newValue
     );
 
+    event LockUpUpdate(
+        uint256 indexed cardId,
+        uint256 oldValue,
+        uint256 newValue
+    );
+
     event LockUpTimeUpdate(
-        uint256 indexed oldValue,
-        uint256 indexed newValue
+        uint256 indexed cardId,
+        uint256 oldValue,
+        uint256 newValue
+    );
+
+    event FeeUpdate(
+        uint256 indexed cardId,
+        string oldValue,
+        string newValue
     );
 
     event FeeSplitPercentageUpdate(
+        uint256 indexed cardId,
         string oldValue,
         string newValue
     );
