@@ -115,7 +115,7 @@ contract VotingStorage {
     }
 
     /// @notice The official record of all proposals ever proposed
-    mapping (uint256 => Proposal) internal _proposals;
+    mapping (uint256 => Proposal) public _proposals;
 
     /// @notice The latest proposal for each proposer
     mapping (address => uint256) public _latestProposalIds;

@@ -15,6 +15,7 @@ use(solidity);
 const {
   encodeParameters,
   etherUnsigned,
+  keccak256
 } = require('./utils/ETH');
 
 describe('Voting Contract', () => {
@@ -51,7 +52,7 @@ describe('Voting Contract', () => {
     quorumVotes = etherUnsigned(100)
     proposalThreshold = 0
     proposalMaxOperations = 100
-    votingDelay = etherUnsigned(0)    // 5 seconds
+    votingDelay = etherUnsigned(0)                 // 0 seconds
     votingPeriod = etherUnsigned(3 * 24 * 60 * 60) // 3 days
     eta = etherUnsigned( 10 * 24 * 60 * 60)
     timelockDelay = etherUnsigned(2 * 24 * 3600)
@@ -72,14 +73,22 @@ describe('Voting Contract', () => {
       await votingContract.authorizeGuardianshipTransfer(guardian.address)
       expect (await votingContract._authorizedNewGuardian()).to.be.equal(guardian.address)
       
-      await votingContract.assumeGuardianship();
+      await votingContract.assumeGuardianship()
+
+      expect (await votingContract._authorizedNewGuardian()).to.be.equal("0x0000000000000000000000000000000000000000")
     })
 
     it ('Queue Authorize Guardian Transfer', async() => {
       const blockData = await provider.getBlock(await provider.getBlockNumber())
       const callEta = blockData.timestamp + 100 + timelockDelay
+      signatures = ["authorizeGuardianshipTransfer(address)"];
+      callDatas = [encodeParameters(['address'], [votingContract.address])];
+
+      const tempHash = keccak256(timelockContract.address, 0, signatures, callDatas, eta)
 
       await votingContract.queueAuthorizeGuardianshipTransfer(votingContract.address, callEta)
+
+      expect (await timelockContract._queuedTransactions(tempHash)).to.be.equal(true)
     })
 
     it ('Execute Authorize Guardian Transfer', async() => {
@@ -87,7 +96,8 @@ describe('Voting Contract', () => {
       const callEta = blockData.timestamp + 100 + timelockDelay
 
       await votingContract.queueAuthorizeGuardianshipTransfer(votingContract.address, callEta)
-      await expect (votingContract.executeAuthorizeGuardianshipTransfer(votingContract.address, callEta)).to.be.reverted
+      await votingContract.executeAuthorizeGuardianshipTransfer(votingContract.address, callEta)
+      // expect (await votingContract.executeAuthorizeGuardianshipTransfer(votingContract.address, callEta)).to.be.reverted
     })
   })
 
@@ -172,10 +182,9 @@ describe('Voting Contract', () => {
 
       await votingContract.setProposalMaxOperations(proposalMaxOperations)
 
-      const value = await votingContract.propose(targets, values, signatures, callDatas, "Initial")  
-
+      await votingContract.propose(targets, values, signatures, callDatas, "Initial")  
+      
       proposalId = await votingContract._latestProposalIds(guardian.address)
-
       trivialProposal = await votingContract._proposals(proposalId)
     })
 
@@ -221,32 +230,40 @@ describe('Voting Contract', () => {
       targets = [newGuardian.address]
 
       await votingContract.propose(targets, values, signatures, callDatas, "Test")
+
+      expect(await votingContract._latestProposalIds(guardian.address)).to.be.equal('0x01')
     })
   }) 
 
   describe('Cast Vote', async() => {
     beforeEach(async() => {
-      targets = [guardian.address];
+      targets = [account.address];
       values = ["150"];
       signatures = ["getBalanceOf(address)"];
       callDatas = [encodeParameters(['address'], [account.address])];
       
       await votingContract.setProposalMaxOperations(proposalMaxOperations)
-      await votingContract.setVotingDelay(votingDelay)
-      await votingContract.setVotingPeriod(votingPeriod)
+      await votingContract.setVotingDelay(0)
+      await votingContract.setVotingPeriod(0)
 
       await votingContract.propose(targets, values, signatures, callDatas, "Test for one proposal to Queue")
       proposalId = await votingContract._latestProposalIds(guardian.address)
-    })
-
-    it ('To check get receipt with voter', async() => {     
-      await votingContract.getReceipt(proposalId, voter.address)
+     
     })
 
     it ('To do CastVote with one voter', async() => {
       await votingContract.getReceipt(proposalId, voter.address)
+      
+      trivialProposal = await votingContract._proposals(proposalId)
+      
+      const state = await votingContract.state(proposalId)
 
       await votingContract.castVote(proposalId, true)
+
+      trivialProposal = await votingContract._proposals(proposalId)
+
+      // Check Voter Count
+      await expect(trivialProposal.voterCount).to.be.equal(1)
     })
 
     it ('To do CastVote one voter to different proposals', async() => {
@@ -269,24 +286,27 @@ describe('Voting Contract', () => {
       // Cast Vote to first proposal
       await votingContract.getReceipt(proposalId, voter.address)
 
-      await votingContract.castVote(proposalId, true)
+      // Cast Vote to second proposal with same voter, it will be error
+      await expect(votingContract.getReceipt(anotherProposalId, voter.address)).to.be.reverted
 
-      // Cast Vote to second proposal with same voter
-      await votingContract.getReceipt(anotherProposalId, voter.address)
+      trivialProposal = await votingContract._proposals(proposalId)
 
-      await votingContract.castVote(anotherProposalId, true)
+      // Check Voter Count&UpVotes
+      await expect(trivialProposal.voterCount).to.be.equal(1)
+      await expect(trivialProposal.upVotes).to.be.equal(1)
     })
 
     it ('To do CastVote with different voters to one proposal', async() => {
       // Cast first Voter to the Proposal
       await votingContract.getReceipt(proposalId, voter.address)
 
-      await votingContract.castVote(proposalId, true)
-
       // Cast second Voter to the Proposal
       await votingContract.getReceipt(proposalId, anotherVoter.address)
 
-      await votingContract.castVote(proposalId, true)
+      // Check Voter Count&UpVotes&DownVotes
+      await expect(trivialProposal.voterCount).to.be.equal(1)
+      await expect(trivialProposal.upVotes).to.be.equal(1)
+      await expect(trivialProposal.downVotes).to.be.equal(1)
     })
   })
 
@@ -308,14 +328,16 @@ describe('Voting Contract', () => {
     })
 
     it ('New Proposal to Queue', async() => {     
-      await votingContract.getReceipt(proposalId, voter.address)
-
       await votingContract.castVote(proposalId, true)
 
       await votingContract.setVotingDelay(0)
       await votingContract.setVotingPeriod(0)     
      
       await votingContract.queue(proposalId)
+
+      const tempHash = keccak256(targets[0], values[0], signatures[0], callDatas[0], eta)
+
+      expect (await timelockContract._queuedTransactions(tempHash)).to.be.equal(true)
     })  
 
     it ('Two Proposals to Queue', async() => {         
@@ -332,19 +354,19 @@ describe('Voting Contract', () => {
     })
 
     it ('The proposal to execute', async() => {
-      await votingContract.getReceipt(proposalId, voter.address)
-
       await votingContract.castVote(proposalId, true)
 
       await votingContract.setVotingDelay(0)
       await votingContract.setVotingPeriod(0)     
 
       await votingContract.execute(proposalId)
+
+      const tempHash = keccak256(targets[0], values[0], signatures[0], callDatas[0], eta)
+
+      expect (await timelockContract._queuedTransactions(tempHash)).to.be.equal(false)
     })
 
     it ('The proposal to cancel', async() => {
-      await votingContract.getReceipt(proposalId, voter.address)
-
       await votingContract.castVote(proposalId, true)
 
       await votingContract.setVotingDelay(0)
@@ -353,6 +375,10 @@ describe('Voting Contract', () => {
       await votingContract.execute(proposalId)
 
       await votingContract.cancel(proposalId)
+
+      const tempHash = keccak256(targets[0], values[0], signatures[0], callDatas[0], eta)
+
+      expect (await timelockContract._queuedTransactions(tempHash)).to.be.equal(false)
     })
   })
 });
