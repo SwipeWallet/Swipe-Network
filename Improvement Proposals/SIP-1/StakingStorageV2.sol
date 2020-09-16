@@ -1,0 +1,1 @@
+../../contracts/staking/StakingStorageV2.sol
