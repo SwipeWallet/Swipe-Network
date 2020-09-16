@@ -274,7 +274,7 @@ contract StakingV2 is NamedContract, StakingStorageV2, StakingEventV2 {
     }
 
     /**
-     * @notice Updates the reward policy, the only address that can provide reward.
+     * @notice Updates the reward policy.
      *
      * @param newRewardCycle New reward cycle
      * @param newRewardAmount New reward amount a cycle
