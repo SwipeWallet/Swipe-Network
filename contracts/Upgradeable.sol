@@ -2,7 +2,6 @@ pragma solidity ^0.5.0;
 
 import "./Ownable.sol";
 
-
 /// @title Upgradeable contract
 /// @author growlot (@growlot)
 contract Upgradeable is Ownable {
