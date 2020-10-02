@@ -10,18 +10,76 @@ const getCalldata = require('./helpers/getCalldata')
 const LOCALSXPTOKEN = require("../build/LocalSXPToken")
 const PROXY = require('../build/StakingProxy')
 const STAKING = require('../build/Staking')
+const STAKINGV2 = require('../build/StakingV2')
 
-describe('Staking Tests', () => {
+describe('StakingV2 Tests', () => {
     const provider = new MockProvider({ total_accounts: 5 })
-    const [walletOwner, walletNewOwner, walletRewardProvider, walletNewRewardProvider, tokenHolder] = provider.getWallets()
+    const [walletGuardian, walletNewGuardian, walletRewardProvider, walletNewRewardProvider, tokenHolder] = provider.getWallets()
     let localSxpToken
     let proxy
     let staking
+    let stakingV2
 
     beforeEach(async () => {
         localSxpToken = await deployContract(tokenHolder, LOCALSXPTOKEN, [])
-        proxy = await deployContract(walletOwner, PROXY, [])
-        staking = await deployContract(walletOwner, STAKING, [])
+        proxy = await deployContract(walletGuardian, PROXY, [])
+        staking = await deployContract(walletGuardian, STAKING, [])
+        stakingV2 = await deployContract(walletGuardian, STAKINGV2, [])
+    })
+
+    describe('Upgrade', () => {
+        beforeEach(async () => {
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, localSxpToken.address, walletRewardProvider.address])
+            await proxy.setImplementationAndCall(staking.address, calldata)
+        })
+
+        it('Wrong owner', async () => {
+            const proxyWithWrongSigner = proxy.connect(walletNewGuardian)
+            await expect(proxyWithWrongSigner.setImplementation(stakingV2.address)).to.be.reverted
+        })
+
+        it('Old implementaton', async () => {
+            expect(await proxy.getImplementation()).to.be.equal(staking.address)
+            await expect(proxy.setImplementation(staking.address)).to.be.reverted
+        })
+
+        it('Reinitialize must revert', async () => {
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletNewGuardian.address, tokenHolder.address, walletNewRewardProvider.address])
+            await expect(proxy.setImplementationAndCall(stakingV2.address, calldata)).to.be.reverted
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
+            expect(await implementation._guardian()).to.be.equal(walletGuardian.address)
+            expect(await implementation._sxpTokenAddress()).to.be.equal(localSxpToken.address)
+            expect(await implementation._rewardProvider()).to.be.equal(walletRewardProvider.address)
+        })
+
+        it('Storage is saved after upgrade', async () => {
+            const implementationOld = new ethers.Contract(proxy.address, STAKING.interface, walletGuardian)
+            expect(await implementationOld._guardian()).to.be.equal(walletGuardian.address)
+            expect(await implementationOld._sxpTokenAddress()).to.be.equal(localSxpToken.address)
+
+            await proxy.setImplementation(stakingV2.address)
+            expect(await proxy.getImplementation()).to.be.equal(stakingV2.address)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
+            expect(await implementation._guardian()).to.be.equal(walletGuardian.address)
+            expect(await implementation._sxpTokenAddress()).to.be.equal(localSxpToken.address)
+        })
+
+        it('Storage with new updates after upgrade', async () => {
+            const implementationOld = new ethers.Contract(proxy.address, STAKING.interface, walletGuardian)
+            expect(await implementationOld._guardian()).to.be.equal(walletGuardian.address)
+            expect(await implementationOld._sxpTokenAddress()).to.be.equal(localSxpToken.address)
+
+            await proxy.setImplementation(stakingV2.address)
+            expect(await proxy.getImplementation()).to.be.equal(stakingV2.address)
+
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
+            expect(await implementation._guardian()).to.be.equal(walletGuardian.address)
+            expect(await implementation._sxpTokenAddress()).to.be.equal(localSxpToken.address)
+
+            expect(await implementation._rewardPendingPeriod()).to.be.equal('0')
+            await implementation.setRewardPolicy('3600', '50000000000000000000000', '604800')
+            expect(await implementation._rewardPendingPeriod()).to.be.equal('604800')
+        })
     })
 
     describe('Brand', () => {
@@ -30,97 +88,92 @@ describe('Staking Tests', () => {
         })
 
         it('Get staking contract name', async () => {
-            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletOwner.address, localSxpToken.address, walletRewardProvider.address])
-            await proxy.setImplementationAndCall(staking.address, calldata)
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletOwner)
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, localSxpToken.address, walletRewardProvider.address])
+            await proxy.setImplementationAndCall(stakingV2.address, calldata)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
             expect(await implementation.name()).to.be.equal('Swipe Staking Proxy')
         })
     })
 
     describe('Settings', () => {
         beforeEach(async () => {
-            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletOwner.address, localSxpToken.address, walletRewardProvider.address])
-            await proxy.setImplementationAndCall(staking.address, calldata)
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, localSxpToken.address, walletRewardProvider.address])
+            await proxy.setImplementationAndCall(stakingV2.address, calldata)
         })
 
         it('Get mininum stake amount', async () => {
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletOwner)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
             expect(await implementation._minimumStakeAmount()).to.be.equal('1000000000000000000000')
         })
 
-        it('Set mininum stake amount by wrong owner or reward provider', async () => {
+        it('Set mininum stake amount by wrong guardian', async () => {
             const newAmount = '2000000000000000000000'
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletNewOwner)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletNewGuardian)
             await expect(implementation.setMinimumStakeAmount(newAmount)).to.be.reverted
         })
 
-        it('Set mininum stake amount by owner', async () => {
+        it('Set mininum stake amount by guardian', async () => {
             const newAmount = '2000000000000000000000'
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletOwner)
-            await expect(implementation.setMinimumStakeAmount(newAmount)).to.emit(implementation, 'MinimumStakeAmountUpdate').withArgs('1000000000000000000000', newAmount)
-            expect(await implementation._minimumStakeAmount()).to.be.equal(newAmount)
-        })
-
-        it('Set mininum stake amount by reward provider', async () => {
-            const newAmount = '2000000000000000000000'
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletRewardProvider)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
             await expect(implementation.setMinimumStakeAmount(newAmount)).to.emit(implementation, 'MinimumStakeAmountUpdate').withArgs('1000000000000000000000', newAmount)
             expect(await implementation._minimumStakeAmount()).to.be.equal(newAmount)
         })
 
         it('Get reward provider', async () => {
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletOwner)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
             expect(await implementation._rewardProvider()).to.be.equal(walletRewardProvider.address)
         })
         
-        it('Set reward provider by wrong owner', async () => {
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletNewOwner)
+        it('Set reward provider by wrong guardian', async () => {
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletNewGuardian)
             await expect(implementation.setRewardProvider(walletNewRewardProvider.address)).to.be.reverted
         })
 
         it('Set reward provider', async () => {
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletOwner)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
             await expect(implementation.setRewardProvider(walletNewRewardProvider.address)).to.emit(implementation, 'RewardProviderUpdate').withArgs(walletRewardProvider.address, walletNewRewardProvider.address)
             expect(await implementation._rewardProvider()).to.be.equal(walletNewRewardProvider.address)
         })
 
         it('Get reward policy', async () => {
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletOwner)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
             expect(await implementation._rewardCycle()).to.be.equal('86400')
             expect(await implementation._rewardAmount()).to.be.equal('40000000000000000000000')
+            expect(await implementation._rewardPendingPeriod()).to.be.equal('86400')
         })
 
-        it('Set reward policy by wrong reward provider', async () => {
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletOwner)
-            await expect(implementation.setRewardPolicy('604800', '50000000000000000000000')).to.be.reverted
+        it('Set reward policy by wrong guardian', async () => {
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletRewardProvider)
+            await expect(implementation.setRewardPolicy('3600', '50000000000000000000000', '604800')).to.be.reverted
         })
 
         it('Set reward policy', async () => {
-            const newCycle = '604800'
+            const newCycle = '3600'
             const newAmount = '50000000000000000000000'
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletRewardProvider)
-            // await expect(implementation.setRewardPolicy(newCycle, newAmount)).to.emit(implementation, 'RewardProviderUpdate').withArgs('86400', '40000000000000000000000', newCycle, newAmount, timestamp)
-            await implementation.setRewardPolicy(newCycle, newAmount)
-            expect(await implementation._rewardCycle()).to.be.equal('604800')
+            const newPendingPeriod = '604800'
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
+            await implementation.setRewardPolicy(newCycle, newAmount, newPendingPeriod)
+            expect(await implementation._rewardCycle()).to.be.equal('3600')
             expect(await implementation._rewardAmount()).to.be.equal('50000000000000000000000')
+            expect(await implementation._rewardPendingPeriod()).to.be.equal('604800')
         })
     })
 
     describe('Reward Pool', () => {
         beforeEach(async () => {
-            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletOwner.address, localSxpToken.address, walletRewardProvider.address])
-            await proxy.setImplementationAndCall(staking.address, calldata)
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, localSxpToken.address, walletRewardProvider.address])
+            await proxy.setImplementationAndCall(stakingV2.address, calldata)
         })
 
         it('Deposit SXP by wrong reward provider', async () => {
             const amount = '1000000000000000000000'
-            await localSxpToken.transfer(walletOwner.address, amount)
-            await localSxpToken.connect(walletOwner).approve(proxy.address, amount)
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletOwner)
-            const beforeBalance = await localSxpToken.balanceOf(walletOwner.address)
+            await localSxpToken.transfer(walletGuardian.address, amount)
+            await localSxpToken.connect(walletGuardian).approve(proxy.address, amount)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
+            const beforeBalance = await localSxpToken.balanceOf(walletGuardian.address)
             expect(beforeBalance).to.be.equal(amount)
             await expect(implementation.depositRewardPool(amount)).to.be.reverted
-            const afterBalance = await localSxpToken.balanceOf(walletOwner.address)
+            const afterBalance = await localSxpToken.balanceOf(walletGuardian.address)
             expect(afterBalance).to.be.equal(amount)
         })
 
@@ -128,7 +181,7 @@ describe('Staking Tests', () => {
             const amount = '1000000000000000000000'
             await localSxpToken.transfer(walletRewardProvider.address, amount)
             await localSxpToken.connect(walletRewardProvider).approve(proxy.address, amount)
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletRewardProvider)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletRewardProvider)
             const beforeRewardPoolAmount = await implementation._rewardPoolAmount()
             expect(beforeRewardPoolAmount).to.be.equal('0')
             await expect(implementation.depositRewardPool(amount)).to.emit(implementation, 'DepositRewardPool').withArgs(walletRewardProvider.address, amount)
@@ -142,11 +195,11 @@ describe('Staking Tests', () => {
             const depositAmount = '1000000000000000000000'
             await localSxpToken.transfer(walletRewardProvider.address, depositAmount)
             await localSxpToken.connect(walletRewardProvider).approve(proxy.address, depositAmount)
-            const implementationWithRewardProvider = new ethers.Contract(proxy.address, STAKING.interface, walletRewardProvider)
+            const implementationWithRewardProvider = new ethers.Contract(proxy.address, STAKINGV2.interface, walletRewardProvider)
             await implementationWithRewardProvider.depositRewardPool(depositAmount)
 
             const amount = '300000000000000000000'
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletOwner)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
             const beforeBalance = await localSxpToken.balanceOf(proxy.address)
             expect(beforeBalance).to.be.equal(depositAmount)
             await expect(implementation.withdrawRewardPool(amount)).to.be.reverted
@@ -159,7 +212,7 @@ describe('Staking Tests', () => {
             const depositAmount = '1000000000000000000000'
             await localSxpToken.transfer(walletRewardProvider.address, depositAmount)
             await localSxpToken.connect(walletRewardProvider).approve(proxy.address, depositAmount)
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletRewardProvider)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletRewardProvider)
             await implementation.depositRewardPool(depositAmount)
 
             const amount = '300000000000000000000'
@@ -178,8 +231,8 @@ describe('Staking Tests', () => {
 
     describe('Stake', () => {
         beforeEach(async () => {
-            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletOwner.address, localSxpToken.address, walletRewardProvider.address])
-            await proxy.setImplementationAndCall(staking.address, calldata)
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, localSxpToken.address, walletRewardProvider.address])
+            await proxy.setImplementationAndCall(stakingV2.address, calldata)
         })
 
         it('Stake SXP', async () => {
@@ -187,7 +240,7 @@ describe('Staking Tests', () => {
             await localSxpToken.approve(proxy.address, amount)
             const beforeBalance = await localSxpToken.balanceOf(proxy.address)
             expect(beforeBalance).to.be.equal('0')
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, tokenHolder)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, tokenHolder)
             const beforeTotalStaked = await implementation._totalStaked()
             expect(beforeTotalStaked).to.be.equal('0')
             const beforeStaked = await implementation.getStakedAmount(tokenHolder.address)
@@ -204,12 +257,12 @@ describe('Staking Tests', () => {
         it('Withdraw SXP by wrong staker', async () => {
             const stakeAmount = '1000000000000000000000'
             await localSxpToken.approve(proxy.address, stakeAmount)
-            const implementationWithTokenHolder = new ethers.Contract(proxy.address, STAKING.interface, tokenHolder)
+            const implementationWithTokenHolder = new ethers.Contract(proxy.address, STAKINGV2.interface, tokenHolder)
             await implementationWithTokenHolder.stake(stakeAmount)
 
             const amount = '300000000000000000000'
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletOwner)
-            const beforeWithdrawerBalance = await localSxpToken.balanceOf(walletOwner.address)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
+            const beforeWithdrawerBalance = await localSxpToken.balanceOf(walletGuardian.address)
             expect(beforeWithdrawerBalance).to.be.equal('0')
             await expect(implementation.withdraw(amount)).to.be.reverted
             const afterBalance = await localSxpToken.balanceOf(proxy.address)
@@ -221,7 +274,7 @@ describe('Staking Tests', () => {
         it('Withdraw SXP', async () => {
             const stakeAmount = '1000000000000000000000'
             await localSxpToken.approve(proxy.address, stakeAmount)
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, tokenHolder)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, tokenHolder)
             await implementation.stake(stakeAmount)
 
             const amount = '300000000000000000000'
@@ -246,7 +299,7 @@ describe('Staking Tests', () => {
             const stakedAmountAfterWithdraw = '2000000000000000000000'
 
             await localSxpToken.approve(proxy.address, amountToStake)
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, tokenHolder)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, tokenHolder)
             await implementation._totalStaked()
             await implementation.getStakedAmount(tokenHolder.address)
             const beforeBlockNumber = await provider.getBlockNumber()
@@ -275,26 +328,26 @@ describe('Staking Tests', () => {
 
     describe('Claim Reward', () => {
         beforeEach(async () => {
-            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletOwner.address, localSxpToken.address, walletRewardProvider.address])
-            await proxy.setImplementationAndCall(staking.address, calldata)
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, localSxpToken.address, walletRewardProvider.address])
+            await proxy.setImplementationAndCall(stakingV2.address, calldata)
 
             const amount = '1000000000000000000000'
             await localSxpToken.transfer(walletRewardProvider.address, amount)
             await localSxpToken.connect(walletRewardProvider).approve(proxy.address, amount)
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletRewardProvider)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletRewardProvider)
             await implementation.depositRewardPool(amount)
         })
 
         it('Approve by wrong reward provider', async () => {
             const amount = '300000000000000000000'
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletNewRewardProvider)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletNewRewardProvider)
             await expect(implementation.approveClaim(tokenHolder.address, amount)).to.be.reverted
         })
 
         it('Approve', async () => {
             const amount = '300000000000000000000'
             const stillRemainAmount = '1000000000000000000000'
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletRewardProvider)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletRewardProvider)
             const newClaimNonce = (await implementation._claimNonce()).add('1')
             await expect(implementation.approveClaim(tokenHolder.address, amount)).to.emit(implementation, 'ApproveClaim').withArgs(tokenHolder.address, amount, newClaimNonce)
             const afterRewardPoolAmount = await implementation._rewardPoolAmount()
@@ -304,11 +357,11 @@ describe('Staking Tests', () => {
 
         it('Claim SXP by wrong staker', async () => {
             const amount = '300000000000000000000'
-            const implementationByRewardProvider = new ethers.Contract(proxy.address, STAKING.interface, walletRewardProvider)
+            const implementationByRewardProvider = new ethers.Contract(proxy.address, STAKINGV2.interface, walletRewardProvider)
             await implementationByRewardProvider.approveClaim(tokenHolder.address, amount)
             const claimNonce = await implementationByRewardProvider._claimNonce()
 
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletOwner)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
             await expect(implementation.claim(claimNonce)).to.be.reverted
             const afterRewardPoolAmount = await implementation._rewardPoolAmount()
             expect(afterRewardPoolAmount).to.be.equal('1000000000000000000000')
@@ -316,11 +369,11 @@ describe('Staking Tests', () => {
 
         it('Claim SXP by wrong nonce', async () => {
             const amount = '300000000000000000000'
-            const implementationByRewardProvider = new ethers.Contract(proxy.address, STAKING.interface, walletRewardProvider)
+            const implementationByRewardProvider = new ethers.Contract(proxy.address, STAKINGV2.interface, walletRewardProvider)
             const claimNonce = await implementationByRewardProvider._claimNonce()
             await implementationByRewardProvider.approveClaim(tokenHolder.address, amount)
 
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, tokenHolder)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, tokenHolder)
             await expect(implementation.claim(claimNonce)).to.be.reverted
             const afterRewardPoolAmount = await implementation._rewardPoolAmount()
             expect(afterRewardPoolAmount).to.be.equal('1000000000000000000000')
@@ -329,11 +382,11 @@ describe('Staking Tests', () => {
         it('Claim SXP', async () => {
             const amount = '300000000000000000000'
             const remainAmount = '700000000000000000000'
-            const implementationByRewardProvider = new ethers.Contract(proxy.address, STAKING.interface, walletRewardProvider)
+            const implementationByRewardProvider = new ethers.Contract(proxy.address, STAKINGV2.interface, walletRewardProvider)
             await implementationByRewardProvider.approveClaim(tokenHolder.address, amount)
             const claimNonce = await implementationByRewardProvider._claimNonce()
 
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, tokenHolder)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, tokenHolder)
             await expect(implementation.claim(claimNonce)).to.emit(implementation, 'Claim').withArgs(tokenHolder.address, amount, claimNonce)
             const afterRewardPoolAmount = await implementation._rewardPoolAmount()
             expect(afterRewardPoolAmount).to.be.equal(remainAmount)
@@ -342,42 +395,42 @@ describe('Staking Tests', () => {
 
     describe('Ownership', () => {
         it('Get proxy owner', async () => {
-            expect(await proxy.getOwner()).to.eq(walletOwner.address)
+            expect(await proxy.getOwner()).to.eq(walletGuardian.address)
         })
 
         it('Transfer proxy ownership by wrong owner', async () => {
-            const proxyWithWrongSigner = proxy.connect(walletNewOwner)
+            const proxyWithWrongSigner = proxy.connect(walletNewGuardian)
             await expect(proxyWithWrongSigner.authorizeOwnershipTransfer(proxyWithWrongSigner.address)).to.be.reverted
-            expect(await proxy.getOwner()).to.eq(walletOwner.address)
+            expect(await proxy.getOwner()).to.eq(walletGuardian.address)
         })
 
         it('Transfer proxy ownership', async () => {
-            await proxy.authorizeOwnershipTransfer(walletNewOwner.address)
-            expect(await proxy.getOwner()).to.eq(walletOwner.address)
-            expect(await proxy.getAuthorizedNewOwner()).to.eq(walletNewOwner.address)
-            const proxyWithNewOwner = proxy.connect(walletNewOwner)
-            await proxyWithNewOwner.assumeOwnership()
-            expect(await proxy.getOwner()).to.eq(walletNewOwner.address)
+            await proxy.authorizeOwnershipTransfer(walletNewGuardian.address)
+            expect(await proxy.getOwner()).to.eq(walletGuardian.address)
+            expect(await proxy.getAuthorizedNewOwner()).to.eq(walletNewGuardian.address)
+            const proxyWithNewGuardian = proxy.connect(walletNewGuardian)
+            await proxyWithNewGuardian.assumeOwnership()
+            expect(await proxy.getOwner()).to.eq(walletNewGuardian.address)
             expect(await proxy.getAuthorizedNewOwner()).to.eq(ethers.constants.AddressZero)            
         })
 
         it('Get staking guardian', async () => {
-            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletOwner.address, localSxpToken.address, walletRewardProvider.address])
-            await proxy.setImplementationAndCall(staking.address, calldata)
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletOwner)
-            expect(await implementation._guardian()).to.be.equal(walletOwner.address)
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, localSxpToken.address, walletRewardProvider.address])
+            await proxy.setImplementationAndCall(stakingV2.address, calldata)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
+            expect(await implementation._guardian()).to.be.equal(walletGuardian.address)
         })
 
         it('Transfer staking guardianship to another address', async () => {
-            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletOwner.address, localSxpToken.address, walletRewardProvider.address])
-            await proxy.setImplementationAndCall(staking.address, calldata)
-            const implementation = new ethers.Contract(proxy.address, STAKING.interface, walletOwner)
-            await expect(implementation.authorizeGuardianshipTransfer(walletNewOwner.address)).to.emit(implementation, 'GuardianshipTransferAuthorization').withArgs(walletNewOwner.address)
-            expect(await implementation._guardian()).to.be.equal(walletOwner.address)
-            const implementationWithNewGuardian = new ethers.Contract(proxy.address, STAKING.interface, walletNewOwner)
-            await expect(implementationWithNewGuardian.assumeGuardianship()).to.emit(implementation, 'GuardianUpdate').withArgs(walletOwner.address, walletNewOwner.address)
-            expect(await implementation._guardian()).to.be.equal(walletNewOwner.address)
-            expect(await implementationWithNewGuardian._guardian()).to.be.equal(walletNewOwner.address)
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, localSxpToken.address, walletRewardProvider.address])
+            await proxy.setImplementationAndCall(stakingV2.address, calldata)
+            const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
+            await expect(implementation.authorizeGuardianshipTransfer(walletNewGuardian.address)).to.emit(implementation, 'GuardianshipTransferAuthorization').withArgs(walletNewGuardian.address)
+            expect(await implementation._guardian()).to.be.equal(walletGuardian.address)
+            const implementationWithNewGuardian = new ethers.Contract(proxy.address, STAKINGV2.interface, walletNewGuardian)
+            await expect(implementationWithNewGuardian.assumeGuardianship()).to.emit(implementation, 'GuardianUpdate').withArgs(walletGuardian.address, walletNewGuardian.address)
+            expect(await implementation._guardian()).to.be.equal(walletNewGuardian.address)
+            expect(await implementationWithNewGuardian._guardian()).to.be.equal(walletNewGuardian.address)
         })
     })
 })

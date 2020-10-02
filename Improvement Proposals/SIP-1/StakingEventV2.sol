@@ -1,0 +1,1 @@
+../../contracts/staking/StakingEventV2.sol

@@ -170,7 +170,7 @@ contract Governance is NamedContract, GovernanceStorage, GovernanceEvent {
         string memory description
     ) public returns (uint256) {
         require(
-            internalGetVotingPower(msg.sender, 0) > _proposalThreshold,
+            internalGetVotingPower(msg.sender, 0) >= _proposalThreshold,
             "The proposer votes below proposal threshold"
         );
 
