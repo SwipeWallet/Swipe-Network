@@ -9,7 +9,7 @@ const getCalldata = require('./helpers/getCalldata')
 const encodeParameters = require('./helpers/encodeParameters')
 const timeTravel = require('./helpers/timeTravel')
 
-const LOCALSXPTOKEN = require("../build/LocalSXPToken")
+const SWIPETOKEN = require("../build/SwipeToken")
 const STAKINGPROXY = require('../build/StakingProxy')
 const STAKING = require('../build/Staking')
 const STAKINGV2 = require('../build/StakingV2')
@@ -21,7 +21,7 @@ const GOVERNANCETIMELOCK = require('../build/GovernanceTimelock')
 describe('SIP-1 Tests', () => {
     const provider = new MockProvider({ total_accounts: 4 })
     const [walletGuardian, walletRewardProvider, proposer, voter] = provider.getWallets()
-    let localSxpToken
+    let swipeToken
     let stakingProxy
     let staking
     let stakingV2
@@ -38,7 +38,7 @@ describe('SIP-1 Tests', () => {
 
     beforeEach(async () => {
         // Deploy all contracts
-        localSxpToken = await deployContract(proposer, LOCALSXPTOKEN, [])
+        swipeToken = await deployContract(proposer, SWIPETOKEN, [])
         stakingProxy = await deployContract(walletGuardian, STAKINGPROXY, [])
         staking = await deployContract(walletGuardian, STAKING, [])
         stakingV2 = await deployContract(walletGuardian, STAKINGV2, [])
@@ -46,7 +46,7 @@ describe('SIP-1 Tests', () => {
         governanceTimelock = await deployContract(walletGuardian, GOVERNANCETIMELOCK, [])
         governanceProxy = await deployContract(walletGuardian, GOVERNANCEPROXY, [])
         governance = await deployContract(walletGuardian, GOVERNANCE, [], { gasLimit: 4712388 })
-        let calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, localSxpToken.address, walletRewardProvider.address])
+        let calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, swipeToken.address, walletRewardProvider.address])
         await stakingProxy.setImplementationAndCall(staking.address, calldata)
         timelockDelay = 3600
         calldata = getCalldata('initialize', ['address', 'uint256'], [governanceProxy.address, timelockDelay])
@@ -62,12 +62,12 @@ describe('SIP-1 Tests', () => {
 
         // Stake
         proposerStakingAmount = '2000000000000000000000'
-        await localSxpToken.approve(stakingProxy.address, proposerStakingAmount)
+        await swipeToken.approve(stakingProxy.address, proposerStakingAmount)
         const stakingImplementationByProposer = new ethers.Contract(stakingProxy.address, STAKING.interface, proposer)
         await stakingImplementationByProposer.stake(proposerStakingAmount)
         voterStakingAmount = '1000000000000000000000'
-        await localSxpToken.transfer(voter.address, voterStakingAmount)
-        await localSxpToken.connect(voter).approve(stakingProxy.address, voterStakingAmount)
+        await swipeToken.transfer(voter.address, voterStakingAmount)
+        await swipeToken.connect(voter).approve(stakingProxy.address, voterStakingAmount)
         const stakingImplementationByVoter = new ethers.Contract(stakingProxy.address, STAKING.interface, voter)
         await stakingImplementationByVoter.stake(voterStakingAmount)
 

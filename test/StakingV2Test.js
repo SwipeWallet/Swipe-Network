@@ -7,7 +7,7 @@ use(solidity)
 
 const getCalldata = require('./helpers/getCalldata')
 
-const LOCALSXPTOKEN = require("../build/LocalSXPToken")
+const SWIPETOKEN = require("../build/SwipeToken")
 const PROXY = require('../build/StakingProxy')
 const STAKING = require('../build/Staking')
 const STAKINGV2 = require('../build/StakingV2')
@@ -15,13 +15,13 @@ const STAKINGV2 = require('../build/StakingV2')
 describe('StakingV2 Tests', () => {
     const provider = new MockProvider({ total_accounts: 5 })
     const [walletGuardian, walletNewGuardian, walletRewardProvider, walletNewRewardProvider, tokenHolder] = provider.getWallets()
-    let localSxpToken
+    let swipeToken
     let proxy
     let staking
     let stakingV2
 
     beforeEach(async () => {
-        localSxpToken = await deployContract(tokenHolder, LOCALSXPTOKEN, [])
+        swipeToken = await deployContract(tokenHolder, SWIPETOKEN, [])
         proxy = await deployContract(walletGuardian, PROXY, [])
         staking = await deployContract(walletGuardian, STAKING, [])
         stakingV2 = await deployContract(walletGuardian, STAKINGV2, [])
@@ -29,7 +29,7 @@ describe('StakingV2 Tests', () => {
 
     describe('Upgrade', () => {
         beforeEach(async () => {
-            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, localSxpToken.address, walletRewardProvider.address])
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, swipeToken.address, walletRewardProvider.address])
             await proxy.setImplementationAndCall(staking.address, calldata)
         })
 
@@ -48,33 +48,33 @@ describe('StakingV2 Tests', () => {
             await expect(proxy.setImplementationAndCall(stakingV2.address, calldata)).to.be.reverted
             const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
             expect(await implementation._guardian()).to.be.equal(walletGuardian.address)
-            expect(await implementation._sxpTokenAddress()).to.be.equal(localSxpToken.address)
+            expect(await implementation._sxpTokenAddress()).to.be.equal(swipeToken.address)
             expect(await implementation._rewardProvider()).to.be.equal(walletRewardProvider.address)
         })
 
         it('Storage is saved after upgrade', async () => {
             const implementationOld = new ethers.Contract(proxy.address, STAKING.interface, walletGuardian)
             expect(await implementationOld._guardian()).to.be.equal(walletGuardian.address)
-            expect(await implementationOld._sxpTokenAddress()).to.be.equal(localSxpToken.address)
+            expect(await implementationOld._sxpTokenAddress()).to.be.equal(swipeToken.address)
 
             await proxy.setImplementation(stakingV2.address)
             expect(await proxy.getImplementation()).to.be.equal(stakingV2.address)
             const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
             expect(await implementation._guardian()).to.be.equal(walletGuardian.address)
-            expect(await implementation._sxpTokenAddress()).to.be.equal(localSxpToken.address)
+            expect(await implementation._sxpTokenAddress()).to.be.equal(swipeToken.address)
         })
 
         it('Storage with new updates after upgrade', async () => {
             const implementationOld = new ethers.Contract(proxy.address, STAKING.interface, walletGuardian)
             expect(await implementationOld._guardian()).to.be.equal(walletGuardian.address)
-            expect(await implementationOld._sxpTokenAddress()).to.be.equal(localSxpToken.address)
+            expect(await implementationOld._sxpTokenAddress()).to.be.equal(swipeToken.address)
 
             await proxy.setImplementation(stakingV2.address)
             expect(await proxy.getImplementation()).to.be.equal(stakingV2.address)
 
             const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
             expect(await implementation._guardian()).to.be.equal(walletGuardian.address)
-            expect(await implementation._sxpTokenAddress()).to.be.equal(localSxpToken.address)
+            expect(await implementation._sxpTokenAddress()).to.be.equal(swipeToken.address)
 
             expect(await implementation._rewardPendingPeriod()).to.be.equal('0')
             await implementation.setRewardPolicy('3600', '50000000000000000000000', '604800')
@@ -88,7 +88,7 @@ describe('StakingV2 Tests', () => {
         })
 
         it('Get staking contract name', async () => {
-            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, localSxpToken.address, walletRewardProvider.address])
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, swipeToken.address, walletRewardProvider.address])
             await proxy.setImplementationAndCall(stakingV2.address, calldata)
             const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
             expect(await implementation.name()).to.be.equal('Swipe Staking Proxy')
@@ -97,7 +97,7 @@ describe('StakingV2 Tests', () => {
 
     describe('Settings', () => {
         beforeEach(async () => {
-            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, localSxpToken.address, walletRewardProvider.address])
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, swipeToken.address, walletRewardProvider.address])
             await proxy.setImplementationAndCall(stakingV2.address, calldata)
         })
 
@@ -161,31 +161,31 @@ describe('StakingV2 Tests', () => {
 
     describe('Reward Pool', () => {
         beforeEach(async () => {
-            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, localSxpToken.address, walletRewardProvider.address])
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, swipeToken.address, walletRewardProvider.address])
             await proxy.setImplementationAndCall(stakingV2.address, calldata)
         })
 
         it('Deposit SXP by wrong reward provider', async () => {
             const amount = '1000000000000000000000'
-            await localSxpToken.transfer(walletGuardian.address, amount)
-            await localSxpToken.connect(walletGuardian).approve(proxy.address, amount)
+            await swipeToken.transfer(walletGuardian.address, amount)
+            await swipeToken.connect(walletGuardian).approve(proxy.address, amount)
             const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
-            const beforeBalance = await localSxpToken.balanceOf(walletGuardian.address)
+            const beforeBalance = await swipeToken.balanceOf(walletGuardian.address)
             expect(beforeBalance).to.be.equal(amount)
             await expect(implementation.depositRewardPool(amount)).to.be.reverted
-            const afterBalance = await localSxpToken.balanceOf(walletGuardian.address)
+            const afterBalance = await swipeToken.balanceOf(walletGuardian.address)
             expect(afterBalance).to.be.equal(amount)
         })
 
         it('Deposit SXP', async () => {
             const amount = '1000000000000000000000'
-            await localSxpToken.transfer(walletRewardProvider.address, amount)
-            await localSxpToken.connect(walletRewardProvider).approve(proxy.address, amount)
+            await swipeToken.transfer(walletRewardProvider.address, amount)
+            await swipeToken.connect(walletRewardProvider).approve(proxy.address, amount)
             const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletRewardProvider)
             const beforeRewardPoolAmount = await implementation._rewardPoolAmount()
             expect(beforeRewardPoolAmount).to.be.equal('0')
             await expect(implementation.depositRewardPool(amount)).to.emit(implementation, 'DepositRewardPool').withArgs(walletRewardProvider.address, amount)
-            const afterBalance = await localSxpToken.balanceOf(proxy.address)
+            const afterBalance = await swipeToken.balanceOf(proxy.address)
             expect(afterBalance).to.be.equal(amount)
             const afterRewardPoolAmount = await implementation._rewardPoolAmount()
             expect(afterRewardPoolAmount).to.be.equal(amount)
@@ -193,52 +193,52 @@ describe('StakingV2 Tests', () => {
 
         it('Withdraw SXP by wrong reward provider', async () => {
             const depositAmount = '1000000000000000000000'
-            await localSxpToken.transfer(walletRewardProvider.address, depositAmount)
-            await localSxpToken.connect(walletRewardProvider).approve(proxy.address, depositAmount)
+            await swipeToken.transfer(walletRewardProvider.address, depositAmount)
+            await swipeToken.connect(walletRewardProvider).approve(proxy.address, depositAmount)
             const implementationWithRewardProvider = new ethers.Contract(proxy.address, STAKINGV2.interface, walletRewardProvider)
             await implementationWithRewardProvider.depositRewardPool(depositAmount)
 
             const amount = '300000000000000000000'
             const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
-            const beforeBalance = await localSxpToken.balanceOf(proxy.address)
+            const beforeBalance = await swipeToken.balanceOf(proxy.address)
             expect(beforeBalance).to.be.equal(depositAmount)
             await expect(implementation.withdrawRewardPool(amount)).to.be.reverted
-            const afterBalance = await localSxpToken.balanceOf(proxy.address)
+            const afterBalance = await swipeToken.balanceOf(proxy.address)
             expect(afterBalance).to.be.equal(depositAmount)
             expect(await implementation._rewardPoolAmount()).to.be.equal(depositAmount)
         })
 
         it('Withdraw SXP', async () => {
             const depositAmount = '1000000000000000000000'
-            await localSxpToken.transfer(walletRewardProvider.address, depositAmount)
-            await localSxpToken.connect(walletRewardProvider).approve(proxy.address, depositAmount)
+            await swipeToken.transfer(walletRewardProvider.address, depositAmount)
+            await swipeToken.connect(walletRewardProvider).approve(proxy.address, depositAmount)
             const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletRewardProvider)
             await implementation.depositRewardPool(depositAmount)
 
             const amount = '300000000000000000000'
             const remainAmount = '700000000000000000000'
-            const beforeRewardProviderBalance = await localSxpToken.balanceOf(walletRewardProvider.address)
+            const beforeRewardProviderBalance = await swipeToken.balanceOf(walletRewardProvider.address)
             expect(beforeRewardProviderBalance).to.be.equal('0')
             await expect(implementation.withdrawRewardPool(amount)).to.emit(implementation, 'WithdrawRewardPool').withArgs(walletRewardProvider.address, amount)
-            const afterBalance = await localSxpToken.balanceOf(proxy.address)
+            const afterBalance = await swipeToken.balanceOf(proxy.address)
             expect(afterBalance).to.be.equal(remainAmount)
             const afterRewardPoolAmount = await implementation._rewardPoolAmount()
             expect(afterRewardPoolAmount).to.be.equal(remainAmount)
-            const afterRewardProviderBalance = await localSxpToken.balanceOf(walletRewardProvider.address)
+            const afterRewardProviderBalance = await swipeToken.balanceOf(walletRewardProvider.address)
             expect(afterRewardProviderBalance).to.be.equal(beforeRewardProviderBalance.add(amount))
         })
     })
 
     describe('Stake', () => {
         beforeEach(async () => {
-            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, localSxpToken.address, walletRewardProvider.address])
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, swipeToken.address, walletRewardProvider.address])
             await proxy.setImplementationAndCall(stakingV2.address, calldata)
         })
 
         it('Stake SXP', async () => {
             const amount = '1000000000000000000000'
-            await localSxpToken.approve(proxy.address, amount)
-            const beforeBalance = await localSxpToken.balanceOf(proxy.address)
+            await swipeToken.approve(proxy.address, amount)
+            const beforeBalance = await swipeToken.balanceOf(proxy.address)
             expect(beforeBalance).to.be.equal('0')
             const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, tokenHolder)
             const beforeTotalStaked = await implementation._totalStaked()
@@ -246,7 +246,7 @@ describe('StakingV2 Tests', () => {
             const beforeStaked = await implementation.getStakedAmount(tokenHolder.address)
             expect(beforeStaked).to.be.equal('0')
             await expect(implementation.stake(amount)).to.emit(implementation, 'Stake').withArgs(tokenHolder.address, amount)
-            const afterBalance = await localSxpToken.balanceOf(proxy.address)
+            const afterBalance = await swipeToken.balanceOf(proxy.address)
             expect(afterBalance).to.be.equal(amount)
             const afterTotalStaked = await implementation._totalStaked()
             expect(afterTotalStaked).to.be.equal(amount)
@@ -256,16 +256,16 @@ describe('StakingV2 Tests', () => {
 
         it('Withdraw SXP by wrong staker', async () => {
             const stakeAmount = '1000000000000000000000'
-            await localSxpToken.approve(proxy.address, stakeAmount)
+            await swipeToken.approve(proxy.address, stakeAmount)
             const implementationWithTokenHolder = new ethers.Contract(proxy.address, STAKINGV2.interface, tokenHolder)
             await implementationWithTokenHolder.stake(stakeAmount)
 
             const amount = '300000000000000000000'
             const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
-            const beforeWithdrawerBalance = await localSxpToken.balanceOf(walletGuardian.address)
+            const beforeWithdrawerBalance = await swipeToken.balanceOf(walletGuardian.address)
             expect(beforeWithdrawerBalance).to.be.equal('0')
             await expect(implementation.withdraw(amount)).to.be.reverted
-            const afterBalance = await localSxpToken.balanceOf(proxy.address)
+            const afterBalance = await swipeToken.balanceOf(proxy.address)
             expect(afterBalance).to.be.equal(stakeAmount)
             const afterTotalStaked = await implementation._totalStaked()
             expect(afterTotalStaked).to.be.equal(stakeAmount)
@@ -273,21 +273,21 @@ describe('StakingV2 Tests', () => {
 
         it('Withdraw SXP', async () => {
             const stakeAmount = '1000000000000000000000'
-            await localSxpToken.approve(proxy.address, stakeAmount)
+            await swipeToken.approve(proxy.address, stakeAmount)
             const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, tokenHolder)
             await implementation.stake(stakeAmount)
 
             const amount = '300000000000000000000'
             const remainAmount = '700000000000000000000'
-            const beforeHolderBalance = await localSxpToken.balanceOf(tokenHolder.address)
+            const beforeHolderBalance = await swipeToken.balanceOf(tokenHolder.address)
             await expect(implementation.withdraw(amount)).to.emit(implementation, 'Withdraw').withArgs(tokenHolder.address, amount)
-            const afterBalance = await localSxpToken.balanceOf(proxy.address)
+            const afterBalance = await swipeToken.balanceOf(proxy.address)
             expect(afterBalance).to.be.equal(remainAmount)
             const afterTotalStaked = await implementation._totalStaked()
             expect(afterTotalStaked).to.be.equal(remainAmount)
             const afterStaked = await implementation.getStakedAmount(tokenHolder.address)
             expect(afterStaked).to.be.equal(remainAmount)
-            const afterHolderBalance = await localSxpToken.balanceOf(tokenHolder.address)
+            const afterHolderBalance = await swipeToken.balanceOf(tokenHolder.address)
             expect(afterHolderBalance).to.be.equal(beforeHolderBalance.add(amount))
         })
 
@@ -298,7 +298,7 @@ describe('StakingV2 Tests', () => {
             const amountToStake = '2200000000000000000000'
             const stakedAmountAfterWithdraw = '2000000000000000000000'
 
-            await localSxpToken.approve(proxy.address, amountToStake)
+            await swipeToken.approve(proxy.address, amountToStake)
             const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, tokenHolder)
             await implementation._totalStaked()
             await implementation.getStakedAmount(tokenHolder.address)
@@ -328,12 +328,12 @@ describe('StakingV2 Tests', () => {
 
     describe('Claim Reward', () => {
         beforeEach(async () => {
-            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, localSxpToken.address, walletRewardProvider.address])
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, swipeToken.address, walletRewardProvider.address])
             await proxy.setImplementationAndCall(stakingV2.address, calldata)
 
             const amount = '1000000000000000000000'
-            await localSxpToken.transfer(walletRewardProvider.address, amount)
-            await localSxpToken.connect(walletRewardProvider).approve(proxy.address, amount)
+            await swipeToken.transfer(walletRewardProvider.address, amount)
+            await swipeToken.connect(walletRewardProvider).approve(proxy.address, amount)
             const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletRewardProvider)
             await implementation.depositRewardPool(amount)
         })
@@ -415,14 +415,14 @@ describe('StakingV2 Tests', () => {
         })
 
         it('Get staking guardian', async () => {
-            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, localSxpToken.address, walletRewardProvider.address])
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, swipeToken.address, walletRewardProvider.address])
             await proxy.setImplementationAndCall(stakingV2.address, calldata)
             const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
             expect(await implementation._guardian()).to.be.equal(walletGuardian.address)
         })
 
         it('Transfer staking guardianship to another address', async () => {
-            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, localSxpToken.address, walletRewardProvider.address])
+            const calldata = getCalldata('initialize', ['address', 'address', 'address'], [walletGuardian.address, swipeToken.address, walletRewardProvider.address])
             await proxy.setImplementationAndCall(stakingV2.address, calldata)
             const implementation = new ethers.Contract(proxy.address, STAKINGV2.interface, walletGuardian)
             await expect(implementation.authorizeGuardianshipTransfer(walletNewGuardian.address)).to.emit(implementation, 'GuardianshipTransferAuthorization').withArgs(walletNewGuardian.address)
