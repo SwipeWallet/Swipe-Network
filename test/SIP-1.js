@@ -92,6 +92,7 @@ describe('SIP-1 Tests', () => {
         // 0. Assume staking ownership
         // 1. Assume staking guardianship
         // 2. Upgrade staking to v2
+        // 3. Set reward policy
         const targets = [
             stakingProxy.address,
             stakingProxy.address,
