@@ -8,17 +8,19 @@ use(solidity)
 const getCalldata = require('./helpers/getCalldata')
 const encodeParameters = require('./helpers/encodeParameters')
 const timeTravel = require('./helpers/timeTravel')
+const mineBlocks = require('./helpers/mineBlocks')
 
 const SWIPETOKEN = require("../build/SwipeToken")
 const STAKINGPROXY = require('../build/StakingProxy')
 const STAKING = require('../build/Staking')
 const STAKINGV2 = require('../build/StakingV2')
+const STAKINGV3 = require('../build/StakingV3')
 const GOVERNANCEPROXY = require('../build/GovernanceProxy')
 const GOVERNANCE = require('../build/Governance')
 const GOVERNANCETIMELOCKPROXY = require('../build/GovernanceTimelockProxy')
 const GOVERNANCETIMELOCK = require('../build/GovernanceTimelock')
 
-describe('SIP-1 Tests', () => {
+describe('SIP-2 Tests', () => {
     const provider = new MockProvider({ total_accounts: 4 })
     const [walletGuardian, walletRewardProvider, proposer, voter] = provider.getWallets()
     let swipeToken
@@ -34,7 +36,8 @@ describe('SIP-1 Tests', () => {
     let timelockDelay
     let proposerStakingAmount
     let voterStakingAmount
-    let rewardPendingPeriod
+    let minimumWithdrawableAge
+    let stakedBlockNumber
 
     beforeEach(async () => {
         // Deploy all contracts
@@ -42,6 +45,7 @@ describe('SIP-1 Tests', () => {
         stakingProxy = await deployContract(walletGuardian, STAKINGPROXY, [])
         staking = await deployContract(walletGuardian, STAKING, [])
         stakingV2 = await deployContract(walletGuardian, STAKINGV2, [])
+        stakingV3 = await deployContract(walletGuardian, STAKINGV3, [])
         governanceTimelockProxy = await deployContract(walletGuardian, GOVERNANCETIMELOCKPROXY, [])
         governanceTimelock = await deployContract(walletGuardian, GOVERNANCETIMELOCK, [])
         governanceProxy = await deployContract(walletGuardian, GOVERNANCEPROXY, [])
@@ -70,7 +74,8 @@ describe('SIP-1 Tests', () => {
         await swipeToken.connect(voter).approve(stakingProxy.address, voterStakingAmount)
         const stakingImplementationByVoter = new ethers.Contract(stakingProxy.address, STAKING.interface, voter)
         await stakingImplementationByVoter.stake(voterStakingAmount)
-
+        stakedBlockNumber = await provider.getBlockNumber()
+  
         // Authorize staking ownership transfer to governance timelock
         await stakingProxy.authorizeOwnershipTransfer(governanceTimelockProxy.address)
         const stakingImplementation = new ethers.Contract(stakingProxy.address, STAKING.interface, walletGuardian)
@@ -79,13 +84,16 @@ describe('SIP-1 Tests', () => {
         // Get config
         votingDelay = await governanceImplementation._votingDelay()
         votingPeriod = await governanceImplementation._votingPeriod()
+        
+        // Execute SIP-1
+        await fnSip1()
     })
 
-    const fnPropose = async () => {
+    const fnSip1 = async () => {
         const stakingImplementation = new ethers.Contract(stakingProxy.address, STAKINGV2.interface, proposer)
         const rewardCycle = await stakingImplementation._rewardCycle()
         const rewardAmount = await stakingImplementation._rewardAmount()
-        rewardPendingPeriod = '604800'
+        const rewardPendingPeriod = '604800'
 
         const proposalDescription = '# SIP-1'
 
@@ -118,9 +126,45 @@ describe('SIP-1 Tests', () => {
             encodeParameters(['uint256', 'uint256', 'uint256'], [rewardCycle, rewardAmount, rewardPendingPeriod])
         ]
 
+        const governanceImplementationByProposer = new ethers.Contract(governanceProxy.address, GOVERNANCE.interface, proposer)
+        await governanceImplementationByProposer.propose(targets, values, signatures, calldatas, proposalDescription)
+
+        const governanceImplementationByVoter = new ethers.Contract(governanceProxy.address, GOVERNANCE.interface, voter)
+        await governanceImplementationByVoter.castVote('1', true)
+
+        await governanceImplementationByProposer.queue('1')
+
+        await timeTravel(provider.provider, timelockDelay)
+        await governanceImplementationByProposer.execute('1')
+    }
+
+    const fnPropose = async () => {
+        minimumWithdrawableAge = 240 // just for test, an hour
+
+        const proposalDescription = '# SIP-2'
+
+        // 1. Upgrade staking v2 to v3
+        // 2. Set minimum withdrawable age
+        const targets = [
+            stakingProxy.address,
+            stakingProxy.address
+        ]
+        const values = [
+            '0',
+            '0'
+        ]
+        const signatures = [
+            'setImplementation(address)',
+            'setMinimumWithdrawableAge(uint256)'
+        ]
+        const calldatas = [
+            encodeParameters(['address'], [stakingV3.address]),
+            encodeParameters(['uint256'], [minimumWithdrawableAge])
+        ]
+
         const currentBlock = await provider.getBlock(await provider.getBlockNumber())
         const governanceImplementation = new ethers.Contract(governanceProxy.address, GOVERNANCE.interface, proposer)
-        await expect(governanceImplementation.propose(targets, values, signatures, calldatas, proposalDescription)).to.emit(governanceImplementation, 'ProposalCreation').withArgs('1', proposer.address, targets, values, signatures, calldatas, currentBlock.number + 1 + Number(votingDelay), currentBlock.number + 1 + Number(votingDelay) + Number(votingPeriod), proposalDescription)
+        await expect(governanceImplementation.propose(targets, values, signatures, calldatas, proposalDescription)).to.emit(governanceImplementation, 'ProposalCreation').withArgs('2', proposer.address, targets, values, signatures, calldatas, currentBlock.number + 1 + Number(votingDelay), currentBlock.number + 1 + Number(votingDelay) + Number(votingPeriod), proposalDescription)
     }
 
     it('Propose', async () => {
@@ -129,7 +173,7 @@ describe('SIP-1 Tests', () => {
 
     const fnVote = async () => {
         const governanceImplementation = new ethers.Contract(governanceProxy.address, GOVERNANCE.interface, voter)
-        await expect(governanceImplementation.castVote('1', true)).to.emit(governanceImplementation, 'Vote').withArgs(voter.address, '1', true, voterStakingAmount)
+        await expect(governanceImplementation.castVote('2', true)).to.emit(governanceImplementation, 'Vote').withArgs(voter.address, '2', true, voterStakingAmount)
     }
 
     it('Vote', async () => {
@@ -139,9 +183,9 @@ describe('SIP-1 Tests', () => {
 
     const fnQueue = async () => {
         const governanceImplementation = new ethers.Contract(governanceProxy.address, GOVERNANCE.interface, proposer)
-        await governanceImplementation.queue('1')
+        await governanceImplementation.queue('2')
         const currentBlock = await provider.getBlock(await provider.getBlockNumber())
-        const proposal = await governanceImplementation.getProposal('1')
+        const proposal = await governanceImplementation.getProposal('2')
         expect(proposal.eta).to.be.equal(currentBlock.timestamp + timelockDelay)
     }
 
@@ -154,7 +198,7 @@ describe('SIP-1 Tests', () => {
     const fnExecute = async () => {
         await timeTravel(provider.provider, timelockDelay)
         const governanceImplementation = new ethers.Contract(governanceProxy.address, GOVERNANCE.interface, proposer)
-        await expect(governanceImplementation.execute('1')).to.emit(governanceImplementation, 'ProposalExecution').withArgs('1')
+        await expect(governanceImplementation.execute('2')).to.emit(governanceImplementation, 'ProposalExecution').withArgs('2')
     }
 
     it('Execute', async () => {
@@ -165,9 +209,12 @@ describe('SIP-1 Tests', () => {
     })
 
     const fnCheck = async () => {
-        const stakingImplementation = new ethers.Contract(stakingProxy.address, STAKINGV2.interface, proposer)
-        expect(await stakingImplementation._rewardPendingPeriod()).to.be.equal(rewardPendingPeriod)
-        expect(await stakingImplementation.getStakedAmount(voter.address)).to.be.equal(voterStakingAmount)
+        const stakingImplementation = new ethers.Contract(stakingProxy.address, STAKINGV3.interface, proposer)
+        expect(await stakingImplementation._minimumWithdrawableAge()).to.be.equal(minimumWithdrawableAge)
+        expect(await stakingImplementation.getWithdrawableStakedAmount(voter.address)).to.be.equal('0')
+        const blocksToMine = minimumWithdrawableAge + stakedBlockNumber - await provider.getBlockNumber()
+        await mineBlocks(provider.provider, blocksToMine)
+        expect(await stakingImplementation.getWithdrawableStakedAmount(voter.address)).to.be.equal(voterStakingAmount)
     }
 
     it('Check', async () => {
