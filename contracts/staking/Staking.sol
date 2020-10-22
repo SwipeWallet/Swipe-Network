@@ -7,7 +7,6 @@ import "./StakingStorage.sol";
 import "./StakingEvent.sol";
 
 /// @title Staking Contract
-/// @author growlot (@growlot)
 contract Staking is NamedContract, StakingStorage, StakingEvent {
     using SafeMath for uint256;
 

@@ -3,7 +3,6 @@ pragma solidity ^0.5.0;
 import "./Ownable.sol";
 
 /// @title Upgradeable contract
-/// @author growlot (@growlot)
 contract Upgradeable is Ownable {
     /// @notice Storage position of the current implementation address.
     /// @dev The address of the current implementation is stored in a

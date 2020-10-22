@@ -2,7 +2,6 @@ pragma solidity ^0.5.0;
 
 
 /// @title Ownable Contract
-/// @author growlot (@growlot)
 contract Ownable {
     /// @notice Storage position of the owner address
     /// @dev The address of the current owner is stored in a

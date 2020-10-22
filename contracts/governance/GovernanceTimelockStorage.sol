@@ -1,7 +1,6 @@
 pragma solidity ^0.5.16;
 
 /// @title Governance Timelock Storage Contract
-/// @author blockplus (@blockplus), brightdev33 (@brightdev33)
 contract GovernanceTimelockStorage {
     /// @notice Initialized flag - indicates that initialization was made once
     bool internal _initialized;

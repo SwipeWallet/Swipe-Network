@@ -4,7 +4,6 @@ import "../SwipeRegistry.sol";
 import "./GovernanceTimelockEvent.sol";
 
 /// @title Governance Timelock Proxy Contract
-/// @author blockplus (@blockplus)
 contract GovernanceTimelockProxy is SwipeRegistry, GovernanceTimelockEvent {
     /// @notice Contract constructor
     /// @dev Calls SwipeRegistry contract constructor

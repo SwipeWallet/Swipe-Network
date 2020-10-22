@@ -1,7 +1,6 @@
 pragma solidity ^0.5.0;
 
 /// @title Staking Event Contract
-/// @author growlot (@growlot)
 contract StakingEvent {
 
     event Initialize(

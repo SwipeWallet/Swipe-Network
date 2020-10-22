@@ -4,7 +4,6 @@ import "./IGovernanceTimelock.sol";
 import "./IStaking.sol";
 
 /// @title Governance Storage Contract
-/// @author blockplus (@blockplus), brightdev33 (@brightdev33)
 contract GovernanceStorage {
 
     /// @notice Initialized flag - indicates that initialization was made once

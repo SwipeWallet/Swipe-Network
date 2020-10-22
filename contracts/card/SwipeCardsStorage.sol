@@ -1,7 +1,6 @@
 pragma solidity ^0.5.0;
 
 /// @title Swipe Cards Storage
-/// @author brightdev33 (@brightdev33), blockplus (@blockplus)
 contract SwipeCardsStorage {
 
     /// @notice Initialized flag - indicates that initialization was made once

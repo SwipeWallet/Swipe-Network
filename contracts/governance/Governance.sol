@@ -9,7 +9,6 @@ import "./IStaking.sol";
 import "./GovernanceEvent.sol";
 
 /// @title Governance Contract
-/// @author blockplus (@blockplus), brightdev33 (@brightdev33)
 contract Governance is NamedContract, GovernanceStorage, GovernanceEvent {
     using SafeMath for uint256;
 

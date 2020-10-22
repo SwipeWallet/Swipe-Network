@@ -1,7 +1,6 @@
 pragma solidity ^0.5.0;
 
 /// @title Swipe Cards Event Contract
-/// @author brightdev33 (@brightdev33), blockplus (@blockplus)
 contract SwipeCardsEvent {
     /// @notice An event emitted when initialize
     event Initialize(

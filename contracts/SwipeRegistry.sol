@@ -4,7 +4,6 @@ import "./NamedContract.sol";
 import "./Upgradeable.sol";
 
 /// @title Upgradeable Registry Contract
-/// @author growlot (@growlot)
 contract SwipeRegistry is NamedContract, Upgradeable {
     /// @notice Contract constructor
     /// @dev Calls Upgradable contract constructor and sets contract name

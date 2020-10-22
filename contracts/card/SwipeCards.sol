@@ -5,7 +5,6 @@ import "./SwipeCardsStorage.sol";
 import "./SwipeCardsEvent.sol";
 
 /// @title Swipe Cards Contract: Configurations of Swipe Network
-/// @author brightdev33 (@brightdev33), blockplus (@blockplus)
 contract SwipeCards is NamedContract, SwipeCardsStorage, SwipeCardsEvent {
     /// @notice Card constructor
     constructor() public {

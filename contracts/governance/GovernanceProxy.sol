@@ -4,7 +4,6 @@ import "../SwipeRegistry.sol";
 import "./GovernanceEvent.sol";
 
 /// @title Governance Proxy Contract
-/// @author blockplus (@blockplus)
 contract GovernanceProxy is SwipeRegistry, GovernanceEvent {
     /// @notice Contract constructor
     /// @dev Calls SwipeRegistry contract constructor

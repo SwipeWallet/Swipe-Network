@@ -6,7 +6,6 @@ import "./GovernanceTimelockStorage.sol";
 import "./GovernanceTimelockEvent.sol";
 
 /// @title Governance Timelock Contract
-/// @author blockplus (@blockplus), brightdev33 (@brightdev33)
 contract GovernanceTimelock is NamedContract, GovernanceTimelockStorage, GovernanceTimelockEvent {
     using SafeMath for uint256;
 

@@ -1,7 +1,6 @@
 pragma solidity ^0.5.0;
 
 /// @title Staking Storage Contract
-/// @author growlot (@growlot)
 contract StakingStorage {
     struct Checkpoint {
         uint256 blockNumberOrCheckpointIndex;

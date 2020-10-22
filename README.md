@@ -21,10 +21,6 @@ yarn
 yarn test
 ```
 
-## Credits
-
-growlot, [@growlot](https://github.com/growlot)
-
 ## Contribute
 
 - If you **need help**, [open an issue](https://github.com/SwipeWallet/staking-contract/issues).
