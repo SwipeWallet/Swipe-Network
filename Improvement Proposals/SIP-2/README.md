@@ -39,10 +39,10 @@ calldata - 11520 // 2 days
 ```
 
 ## Changes
-- [StakingV3.js](https://github.com/SwipeWallet/Swipe-Network/blob/feature/SIP-2/contracts/staking/StakingV3.sol)
-- [StakingStorageV3.js](https://github.com/SwipeWallet/Swipe-Network/blob/feature/SIP-2/contracts/staking/StakingStorageV3.sol)
-- [StakingEventV3.js](https://github.com/SwipeWallet/Swipe-Network/blob/feature/SIP-2/contracts/staking/StakingEventV3.sol)
+- [StakingV3.js](https://github.com/SwipeWallet/Swipe-Network/blob/master/contracts/staking/StakingV3.sol)
+- [StakingStorageV3.js](https://github.com/SwipeWallet/Swipe-Network/blob/master/contracts/staking/StakingStorageV3.sol)
+- [StakingEventV3.js](https://github.com/SwipeWallet/Swipe-Network/blob/master/contracts/staking/StakingEventV3.sol)
 
 ## Tests
-- [SIP-2.js](https://github.com/SwipeWallet/Swipe-Network/blob/feature/SIP-2/test/SIP-2.js)
-- [StakingV3Test.js](https://github.com/SwipeWallet/Swipe-Network/blob/feature/SIP-2/test/StakingV3Test.js)
+- [SIP-2.js](https://github.com/SwipeWallet/Swipe-Network/blob/master/test/SIP-2.js)
+- [StakingV3Test.js](https://github.com/SwipeWallet/Swipe-Network/blob/master/test/StakingV3Test.js)
