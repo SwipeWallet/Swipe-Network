@@ -25,6 +25,11 @@ contract SwipeCardsEvent {
         string feeSplitPercentage
     );
 
+    event CardUnregistration(
+        uint256 indexed cardId,
+        string cardName
+    );
+
     event CardUpdate(
         uint256 indexed cardId,
         string cardName,

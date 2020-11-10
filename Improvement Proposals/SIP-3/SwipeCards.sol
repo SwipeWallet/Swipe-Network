@@ -1,0 +1,1 @@
+../../contracts/card/SwipeCards.sol

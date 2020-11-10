@@ -39,9 +39,9 @@ calldata - 11520 // 2 days
 ```
 
 ## Changes
-- [StakingV3.js](https://github.com/SwipeWallet/Swipe-Network/blob/master/contracts/staking/StakingV3.sol)
-- [StakingStorageV3.js](https://github.com/SwipeWallet/Swipe-Network/blob/master/contracts/staking/StakingStorageV3.sol)
-- [StakingEventV3.js](https://github.com/SwipeWallet/Swipe-Network/blob/master/contracts/staking/StakingEventV3.sol)
+- [StakingV3.sol](https://github.com/SwipeWallet/Swipe-Network/blob/master/contracts/staking/StakingV3.sol)
+- [StakingStorageV3.sol](https://github.com/SwipeWallet/Swipe-Network/blob/master/contracts/staking/StakingStorageV3.sol)
+- [StakingEventV3.sol](https://github.com/SwipeWallet/Swipe-Network/blob/master/contracts/staking/StakingEventV3.sol)
 
 ## Tests
 - [SIP-2.js](https://github.com/SwipeWallet/Swipe-Network/blob/master/test/SIP-2.js)
