@@ -25,7 +25,14 @@ describe('Swipe Cards Tests', async () => {
     const defaultLockUpTime = 10000
     const defaultFee = '0.25'
     const defaultFeeSplitPercentage = '5'
-    
+
+    const default2CardId = 2
+    const default2CardName = 'Venus'
+    const default2LockUp = 1300
+    const default2LockUpTime = 110000
+    const default2Fee = '0.95'
+    const default2FeeSplitPercentage = '15'
+
     beforeEach(async() => {
         proxy = await deployContract(walletOwner, PROXY, [])
         cards = await deployContract(walletOwner, CARDS, [])
@@ -50,22 +57,98 @@ describe('Swipe Cards Tests', async () => {
             await proxy.setImplementationAndCall(cards.address, calldata)
         })
 
-        it('Register card', async () => {
-            const implementation = new ethers.Contract(proxy.address, CARDS.interface, votingContract)
-            await expect(implementation.registerCard(
-                defaultCardName,
-                defaultLockUp,
-                defaultLockUpTime,
-                defaultFee,
-                defaultFeeSplitPercentage))
-            .to.emit(implementation, 'CardRegistration')
-            .withArgs(
-                1,
-                defaultCardName,
-                defaultLockUp,
-                defaultLockUpTime,
-                defaultFee,
-                defaultFeeSplitPercentage)
+        describe('Register', async () => {
+            it('Register card', async () => {
+                const implementation = new ethers.Contract(proxy.address, CARDS.interface, votingContract)
+                await expect(implementation.registerCard(
+                    defaultCardName,
+                    defaultLockUp,
+                    defaultLockUpTime,
+                    defaultFee,
+                    defaultFeeSplitPercentage))
+                .to.emit(implementation, 'CardRegistration')
+                .withArgs(
+                    defaultCardId,
+                    defaultCardName,
+                    defaultLockUp,
+                    defaultLockUpTime,
+                    defaultFee,
+                    defaultFeeSplitPercentage)
+                
+                await expect(implementation.registerCard(
+                    default2CardName,
+                    default2LockUp,
+                    default2LockUpTime,
+                    default2Fee,
+                    default2FeeSplitPercentage))
+                .to.emit(implementation, 'CardRegistration')
+                .withArgs(
+                    default2CardId,
+                    default2CardName,
+                    default2LockUp,
+                    default2LockUpTime,
+                    default2Fee,
+                    default2FeeSplitPercentage)
+
+                const cardCount = await implementation._cardCount()
+                expect(cardCount).to.be.equal(default2CardId)
+            })
+
+            it('Register card by wrong guardian', async () => {
+                const implementation = new ethers.Contract(proxy.address, CARDS.interface, otherWallet)
+                await expect(implementation.registerCard(
+                    defaultCardName,
+                    defaultLockUp,
+                    defaultLockUpTime,
+                    defaultFee,
+                    defaultFeeSplitPercentage))
+                .to.be.reverted
+            })
+        })
+
+        describe('Unregister', async () => {
+            beforeEach(async () => {
+                const implementation = new ethers.Contract(proxy.address, CARDS.interface, votingContract)
+                await implementation.registerCard(
+                    defaultCardName,
+                    defaultLockUp,
+                    defaultLockUpTime,
+                    defaultFee,
+                    defaultFeeSplitPercentage)
+                await implementation.registerCard(
+                    default2CardName,
+                    default2LockUp,
+                    default2LockUpTime,
+                    default2Fee,
+                    default2FeeSplitPercentage)
+                })
+
+            it('Unregister card', async () => {
+                const implementation = new ethers.Contract(proxy.address, CARDS.interface, votingContract)
+                await expect(implementation.unregisterCard(
+                    defaultCardId))
+                .to.emit(implementation, 'CardUnregistration')
+                .withArgs(
+                    defaultCardId,
+                    defaultCardName)
+
+                const cardCount = await implementation._cardCount()
+                expect(cardCount).to.be.equal(defaultCardId)
+                const card = await implementation._cards(defaultCardId)
+                expect(card.cardId).to.be.equal(defaultCardId)
+                expect(card.cardName).to.be.equal(default2CardName)
+                expect(card.lockUp).to.be.equal(default2LockUp)
+                expect(card.lockUpTime).to.be.equal(default2LockUpTime)
+                expect(card.fee).to.be.equal(default2Fee)
+                expect(card.feeSplitPercentage).to.be.equal(default2FeeSplitPercentage)
+            })
+
+            it('Unregister card by wrong guardian', async () => {
+                const implementation = new ethers.Contract(proxy.address, CARDS.interface, otherWallet)
+                await expect(implementation.unregisterCard(
+                    defaultCardId))
+                .to.be.reverted
+            })
         })
 
         describe('Swipe cards configuration', async () => {
@@ -77,7 +160,13 @@ describe('Swipe Cards Tests', async () => {
                     defaultLockUpTime,
                     defaultFee,
                     defaultFeeSplitPercentage)
-            })
+                await implementation.registerCard(
+                    default2CardName,
+                    default2LockUp,
+                    default2LockUpTime,
+                    default2Fee,
+                    default2FeeSplitPercentage)
+                })
 
             it('Get card', async () => {
                 const implementation = new ethers.Contract(proxy.address, CARDS.interface, votingContract)
@@ -88,6 +177,14 @@ describe('Swipe Cards Tests', async () => {
                 expect(card.lockUpTime).to.be.equal(defaultLockUpTime)
                 expect(card.fee).to.be.equal(defaultFee)
                 expect(card.feeSplitPercentage).to.be.equal(defaultFeeSplitPercentage)
+
+                const card2 = await implementation._cards(default2CardId)
+                expect(card2.cardId).to.be.equal(default2CardId)
+                expect(card2.cardName).to.be.equal(default2CardName)
+                expect(card2.lockUp).to.be.equal(default2LockUp)
+                expect(card2.lockUpTime).to.be.equal(default2LockUpTime)
+                expect(card2.fee).to.be.equal(default2Fee)
+                expect(card2.feeSplitPercentage).to.be.equal(default2FeeSplitPercentage)
             })
 
             it('Set card', async () => {
@@ -125,7 +222,7 @@ describe('Swipe Cards Tests', async () => {
             })
       
             it('Set not-registered card', async () => {
-                const wrongCardId = 2
+                const wrongCardId = 3
                 const newCardName = 'SwipeMaster'
                 const newLockUp = 200
                 const newLockUpTime = 20000

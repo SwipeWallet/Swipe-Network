@@ -74,6 +74,10 @@ contract SwipeCards is NamedContract, SwipeCardsStorage, SwipeCardsEvent {
         string calldata feeSplitPercentage
     ) external returns (uint256) {
         require(
+            _cardCount < uint256(-1),
+            "Card count exceeds maximum"
+        );
+        require(
             bytes(cardName).length > 0,
             "Invalid card name"
         );
@@ -120,6 +124,41 @@ contract SwipeCards is NamedContract, SwipeCardsStorage, SwipeCardsEvent {
         );
 
         return newCard.cardId;
+    }
+
+    /// @notice Unregisters a existing card
+    /// @dev Removes a card that card id is the provided id, and rearrange card list with new id
+    function unregisterCard(
+        uint256 cardId
+    ) external {
+        require(
+            cardId > 0,
+            "Invalid card id"
+        );
+        require(
+            _cardCount >= cardId && bytes(_cards[cardId].cardName).length > 0,
+            "Not found card"
+        );
+
+        require(
+            msg.sender == _guardian,
+            "Only the guardian can register new card"
+        );
+
+        Card memory unregisteredCard = _cards[cardId];
+        
+        for (; cardId < _cardCount; cardId++) {
+            Card storage card = _cards[cardId + 1];
+            card.cardId = cardId;
+            _cards[cardId] = card;
+        }
+
+        delete _cards[_cardCount--];
+
+        emit CardUnregistration(
+            unregisteredCard.cardId,
+            unregisteredCard.cardName
+        );
     }
 
     /// @notice Updates card

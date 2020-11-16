@@ -64,9 +64,9 @@ calldata - 1800, 400000000000000000000, 604800 // a week
 ```
 
 ## Changes
-- [StakingV2.js](https://github.com/SwipeWallet/Swipe-Network/blob/master/contracts/staking/StakingV2.sol)
-- [StakingStorageV2.js](https://github.com/SwipeWallet/Swipe-Network/blob/master/contracts/staking/StakingStorageV3.sol)
-- [StakingEventV2.js](https://github.com/SwipeWallet/Swipe-Network/blob/master/contracts/staking/StakingEventV2.sol)
+- [StakingV2.sol](https://github.com/SwipeWallet/Swipe-Network/blob/master/contracts/staking/StakingV2.sol)
+- [StakingStorageV2.sol](https://github.com/SwipeWallet/Swipe-Network/blob/master/contracts/staking/StakingStorageV3.sol)
+- [StakingEventV2.sol](https://github.com/SwipeWallet/Swipe-Network/blob/master/contracts/staking/StakingEventV2.sol)
 
 ## Tests
 - [SIP-1.js](https://github.com/SwipeWallet/Swipe-Network/blob/master/test/SIP-1.js)
